@@ -24,7 +24,7 @@ import { RadialMenu, VOICE_MENU } from './radialMenu.js';
 import { PlayerList } from './playerList.js';
 import { LookName } from './lookName.js';
 import { DebugPanel } from './debug.js';
-import { MobileControls } from './mobile.js';
+// import { MobileControls } from './mobile.js';
 import { loadKeys } from './keybinds.js';
 import { isTouchDevice, store } from './util.js';
 import { initTabGuard } from './tabGuard.js';
