@@ -1,3 +1,4 @@
+
 // Başlangıç noktası: sahneyi, evi (GLB veya örnek ev), sistemleri ve arayüzü kurar; oyun döngüsünü çalıştırır.
 // Modüller birbirini doğrudan import etmek yerine ortak `ctx` nesnesi üzerinden konuşur (bkz. context.js).
 import { GAME_CONFIG, KEYS } from './config.js';
@@ -24,9 +25,8 @@ import { RadialMenu, VOICE_MENU } from './radialMenu.js';
 import { PlayerList } from './playerList.js';
 import { LookName } from './lookName.js';
 import { DebugPanel } from './debug.js';
-// import { MobileControls } from './mobile.js';
+import { store } from './util.js';
 import { loadKeys } from './keybinds.js';
-import { isTouchDevice, store } from './util.js';
 import { initTabGuard } from './tabGuard.js';
 
 const loadingEl = document.getElementById('loading');
@@ -41,27 +41,42 @@ function setLoading(text, frac) {
 async function boot() {
   // ---- ayarlar ----
   Object.assign(ctx.settings, store.get('settings', {}));
-  initTabGuard(); // Ctrl (eğilme) + W ile sekme kapanmasın
+  initTabGuard();
   ctx.settings.quality = ctx.settings.quality || GAME_CONFIG.graphics.quality;
   audio.setVolume(ctx.settings.volume);
-  loadKeys(); // kayıtlı tuş atamaları (Ayarlar > Tuşlar)
+  loadKeys();
 
   // ---- sahne ----
   const canvas = document.getElementById('game');
   ctx.audio = audio;
   ctx.sceneMgr = new SceneManager(canvas, ctx.settings.quality);
   ctx.sceneMgr.setFov(ctx.settings.fov ?? GAME_CONFIG.camera.fov);
-  ctx.viewmodel = new ViewModel(ctx.sceneMgr); // birinci şahıs: elimdeki silah ana görüntünün üstüne ayrı geçişte çizilir
+  ctx.viewmodel = new ViewModel(ctx.sceneMgr);
   ctx.sceneMgr.addOverlay(ctx.viewmodel);
   ctx.input = new Input(canvas);
 
   setLoading('Ev yükleniyor…', 0.1);
-  const house = await loadHouse(GAME_CONFIG.assets.house, (f) => setLoading('Ev yükleniyor…', 0.1 + f * 0.7));
+  const house = await loadHouse(
+    GAME_CONFIG.assets.house,
+    (f) => setLoading('Ev yükleniyor…', 0.1 + f * 0.7)
+  );
+
   setLoading('Sistemler kuruluyor…', 0.85);
-  ctx.world = new World({ sceneMgr: ctx.sceneMgr, house, quality: ctx.settings.quality });
+  ctx.world = new World({
+    sceneMgr: ctx.sceneMgr,
+    house,
+    quality: ctx.settings.quality
+  });
+
   ctx.grab = ctx.world.grab;
-  ctx.world.onSound = (name, pos) => audio.sfx(name, { pos, listener: ctx.sceneMgr.camera.position });
-  ctx.world.onEffect = (name, arg) => ctx.effects?.[name]?.(arg);
+  ctx.world.onSound = (name, pos) =>
+    audio.sfx(name, {
+      pos,
+      listener: ctx.sceneMgr.camera.position
+    });
+
+  ctx.world.onEffect = (name, arg) =>
+    ctx.effects?.[name]?.(arg);
 
   // ---- oyun sistemleri ----
   ctx.players = new PlayerManager();
@@ -71,12 +86,12 @@ async function boot() {
   ctx.corpses = new CorpseManager();
   ctx.effects = new Effects(ctx.sceneMgr);
   ctx.knifeView = new KnifeView(ctx.sceneMgr);
-  ctx.projectiles = new ProjectileView(ctx.sceneMgr); // roket / plazma mermisi ve kurulu bombalar
+  ctx.projectiles = new ProjectileView(ctx.sceneMgr);
   ctx.net = new Multiplayer();
   ctx.client = new GameClient();
   ctx.voice = new VoiceManager();
 
-  // Bakılan nesneyle etkileşim sağlayıcıları (en yakın isabet interaction.js içinde seçilir)
+  // Bakılan nesneyle etkileşim sağlayıcıları
   ctx.interaction.addProvider((me) => ctx.grab.candidates(me));
   ctx.interaction.addProvider((me) => ctx.corpses.candidates(me));
   ctx.interaction.addProvider((me) => ctx.knifeView.candidates(me));
@@ -85,12 +100,11 @@ async function boot() {
   const uiRoot = document.getElementById('ui');
   ctx.ui = new UI(uiRoot);
   ctx.chat = new ChatUI(uiRoot);
-  ctx.lookName = new LookName(ctx.ui.hud); // nişangâhın altında bakılan kişinin adı
-  ctx.radial = new RadialMenu(uiRoot); // Q: ses menüsü
-  ctx.voiceRadial = new RadialMenu(uiRoot, VOICE_MENU); // C (basılı tut): fısıltı / normal / bağırma
+  ctx.lookName = new LookName(ctx.ui.hud);
+  ctx.radial = new RadialMenu(uiRoot);
+  ctx.voiceRadial = new RadialMenu(uiRoot, VOICE_MENU);
   ctx.playerList = new PlayerList(uiRoot);
-  ctx.debug = new DebugPanel(uiRoot); // yalnızca debug odasının host'unda açılır
-  // const mobile = isTouchDevice() ? new MobileControls(uiRoot) : null;
+  ctx.debug = new DebugPanel(uiRoot);
 
   ctx.client.attach(ctx.net);
   ctx.ui.attach(ctx.net);
@@ -105,64 +119,114 @@ async function boot() {
       ctx.ui.hidePause(false);
       return;
     }
+
     setTimeout(() => {
-      if (isTouchDevice() || ctx.input.locked) return;
+      if (ctx.input.locked) return;
+
       const live = ctx.phase === 'playing' || ctx.phase === 'ended';
       if (!live) return;
-      if (ctx.chat.box.classList.contains('typing') || ctx.playerList.sticky || ctx.ui.modalOpen()) return;
+
+      if (
+        ctx.chat.box.classList.contains('typing') ||
+        ctx.playerList.sticky ||
+        ctx.ui.modalOpen()
+      ) return;
+
       ctx.ui.showPause();
     }, 60);
   });
+
   canvas.addEventListener('click', () => {
     audio.unlock();
+
     const live = ctx.phase === 'playing' || ctx.phase === 'ended';
-    if (live && !isTouchDevice() && !ctx.ui.modalOpen() && !ctx.playerList.sticky) ctx.input.requestLock();
-  });
-  window.addEventListener('keydown', (e) => {
-    if (e.code === 'Escape' && ctx.playerList.sticky) ctx.playerList.closeMenu(true);
+
+    if (
+      live &&
+      !ctx.ui.modalOpen() &&
+      !ctx.playerList.sticky
+    ) {
+      ctx.input.requestLock();
+    }
   });
 
-  // Collision_* nesneleri görünür (yarı saydam turuncu): F3 / debug paneli ile aç-kapa, seçim kaydedilir (varsayılan: açık)
+  window.addEventListener('keydown', (e) => {
+    if (e.code === 'Escape' && ctx.playerList.sticky) {
+      ctx.playerList.closeMenu(true);
+    }
+  });
+
+  // Collision_* nesneleri görünür (yarı saydam turuncu)
   ctx.toggleCollisionView = () => {
     const on = ctx.world.setCollisionView(!ctx.world.collision.debugOn);
+
     ctx.settings.showCollision = on;
     store.set('settings', ctx.settings);
-    ctx.ui.toast(on ? 'Çarpışma nesneleri görünür' : 'Çarpışma nesneleri gizli', 1200);
+
+    ctx.ui.toast(
+      on ? 'Çarpışma nesneleri görünür' : 'Çarpışma nesneleri gizli',
+      1200
+    );
+
     return on;
   };
-  if (ctx.world.collisionMode === 'collision' && ctx.settings.showCollision !== false) ctx.world.setCollisionView(false);
-    if (ctx.world.collisionMode === 'collision' && ctx.settings.showCollision !== true) ctx.world.setCollisionView(false);
 
-  window.__game = ctx; // hata ayıklama için konsoldan erişim
+  if (
+    ctx.world.collisionMode === 'collision' &&
+    ctx.settings.showCollision !== false
+  ) {
+    ctx.world.setCollisionView(false);
+  }
+
+  if (
+    ctx.world.collisionMode === 'collision' &&
+    ctx.settings.showCollision !== true
+  ) {
+    ctx.world.setCollisionView(false);
+  }
+
+  window.__game = ctx;
+
   setLoading('Hazır', 1);
   loadingEl?.classList.add('done');
   setTimeout(() => loadingEl?.remove(), 600);
 
-  // ---- döngü ----
+  // ---- oyun döngüsü ----
   let last = performance.now();
   let errored = false;
+
   const frame = (now) => {
     requestAnimationFrame(frame);
+
     const dt = Math.min(0.05, Math.max(0.0005, (now - last) / 1000));
     last = now;
+
     try {
-      step(dt, mobile);
+      step(dt);
     } catch (e) {
       if (!errored) console.error('[döngü hatası]', e);
       errored = true;
     }
   };
+
   requestAnimationFrame(frame);
 }
 
-function step(dt, mobile) {
-  const live = (ctx.phase === 'playing' || ctx.phase === 'ended') && !!ctx.me;
+function step(dt) {
+  const live =
+    (ctx.phase === 'playing' || ctx.phase === 'ended') &&
+    !!ctx.me;
 
   ctx.world.update(dt);
-  if (ctx.input.wasPressed(KEYS.collisionView)) ctx.toggleCollisionView();
-  ctx.radial.update(dt); // fare hareketini (sanal imleç) kamera dönmeden ÖNCE tüketir
+
+  if (ctx.input.wasPressed(KEYS.collisionView)) {
+    ctx.toggleCollisionView();
+  }
+
+  ctx.radial.update(dt);
   ctx.voiceRadial.update(dt);
   ctx.playerList.update(dt);
+
   if (live) {
     ctx.grab.handleInput();
     ctx.movement.update(dt);
@@ -170,9 +234,10 @@ function step(dt, mobile) {
     ctx.inventory.update(dt);
     ctx.interaction.update();
   } else {
-    ctx.movement.update(dt); // menü / lobi: evin etrafında dönen kamera
-    ctx.interaction.update(); // (hiçbir şey yapmaz, öneriyi temizler)
+    ctx.movement.update(dt);
+    ctx.interaction.update();
   }
+
   ctx.chat.update();
   ctx.voice.update(dt);
 
@@ -183,15 +248,19 @@ function step(dt, mobile) {
   ctx.knifeView.update(dt);
   ctx.projectiles.update(dt);
 
-  if (ctx.isHost && ctx.host) ctx.host.update(dt);
+  if (ctx.isHost && ctx.host) {
+    ctx.host.update(dt);
+  }
+
   ctx.client.update(dt);
 
   ctx.ui.update(dt);
   ctx.lookName.update(dt);
   ctx.debug.update(dt);
-  mobile?.update();
+
   ctx.sceneMgr.update(dt);
   ctx.sceneMgr.render();
+
   ctx.input.endFrame();
 }
 
