@@ -11,7 +11,7 @@ import { DEBUG_ROLE_OPTIONS } from './debug.js';
 import { KEY_ACTIONS, actionLabel, keyLabel, resetKeys, setKey } from './keybinds.js';
 import { h, fmtTime, store, isTouchDevice, isBotId, colorCss } from './util.js';
 
-const ABILITY_NAMES = { sleepwalker: 'Uyurgezerlik', bomber: 'Kendini patlat', medium: 'Medyum bağlantısı', s2g: 'S2G (fermuar)' };
+const ABILITY_NAMES = { sleepwalker: 'Uyurgezerlik', bomber: 'Kendini patlat', medium: 'Medyum bağlantısı', s2g: 'S2G (sik)' };
 // Tuş atama sırasında atanamayacak tarayıcı / sistem tuşları
 const BLOCKED_KEYS = new Set(['F5', 'F11', 'F12', 'MetaLeft', 'MetaRight', 'OSLeft', 'OSRight', 'ContextMenu']);
 const CAUSE_NAMES = {
@@ -947,7 +947,7 @@ export class UI {
     };
     const vol = h('input', { type: 'range', min: '0', max: '1', step: '0.05', value: String(S.volume) });
     vol.oninput = () => { S.volume = Number(vol.value); save(); };
-    const q = this.select([['low', 'Düşük'], ['medium', 'Orta'], ['high', 'Yüksek']], S.quality);
+    const q = this.select([['low', 'Düşük'], ['medium', 'Orta'], ['high', 'Yüksek'], ['ultra', 'Ultra'], ['ultrahigh', 'Ultra Yüksek']], S.quality);
     q.onchange = () => { S.quality = q.value; ctx.sceneMgr.setQuality(q.value); save(); this.toast('Ev materyali ve fener gölgeleri sayfa yenilenince tam uygulanır.'); };
     const dead = this.check('Ölü sohbet mesajlarını göster', S.showDeadChat !== false);
     dead.input.onchange = () => { S.showDeadChat = dead.input.checked; save(); };
