@@ -1,0 +1,780 @@
+// HOST OTORİTESİ: oyun durumunu tutan, istemci isteklerini doğrulayan ve sonuçları herkese yayınlayan sınıf.
+// Yalnızca odanın host'unun tarayıcısında çalışır (ctx.host). Host ayrılırsa P2P oda kapanır.
+//
+// İstemci → host mesajları (d.t):
+//   pos, act{a}, grab, drop, throw, carry, knifePickup, equip{on}, fire{o,d}, alt{o,d}, reload, ability{...},
+//   baiter{target}, sound{i}, chat{text}, spec{id}, hello
+// Host → istemci mesajları: client.js başındaki liste.
+import * as THREE from 'three';
+import { GAME_CONFIG } from './config.js';
+import { ctx } from './context.js';
+import { CombatSystem, truePos } from './combat.js';
+import { RoundManager, newPlayerState } from './rounds.js';
+import { ROLES, computeVisibility, makeIdentities } from './roles.js';
+import { Rate, isBotId, round3 } from './util.js';
+
+const E = GAME_CONFIG.equipment;
+const V = GAME_CONFIG.voice;
+
+export const DEFAULT_SETTINGS = {
+  roundTime: GAME_CONFIG.rounds.roundTime,
+  lovers: true,
+  roles: {}, // host'un rol seçimi: { detective: 2 (en çok 2), medium: 0 (oyunda yok) } — eksik = otomatik (bkz. roles.js → roleLimits)
+  deadChat: 'dead', // 'dead' = ölü mesajlarını yalnızca ölüler görür, 'all' = herkes görür
+  debug: false, // debug odası: roller elle seçilir, bot eklenebilir, tur kendiliğinden bitmez
+};
+
+const cleanText = (s, n) => String(s ?? '').replace(/[\u0000-\u001f<>]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, n);
+
+export class HostGame {
+  constructor() {
+    this.state = this.freshState();
+    this.combat = new CombatSystem(this);
+    this.rounds = new RoundManager(this);
+    this.posBuf = new Map();
+    this.posRate = new Rate(GAME_CONFIG.net.posHz);
+    this.links = new Set(); // yakınlık ses bağlantıları ("a|b")
+    this.lastRoutes = new Map();
+    this.routeT = 0;
+    this.meT = 0;
+    this.chatLast = new Map();
+  }
+
+  freshState() {
+    return {
+      phase: 'lobby', // lobby | reveal | playing | ended
+      round: 0,
+      time: 0,
+      limit: 0,
+      revealLeft: 0,
+      endTimer: 0,
+      winner: null,
+      mode: 'voice',
+      players: {},
+      baiterId: null,
+      baiterUsed: false,
+      lovers: null,
+      knife: { s: 'held', p: [0, 0, 0], v: [0, 0, 0], ret: 0, delay: 0, from: null },
+      nightNo: 0, // kaçıncı gece (ışıklar kapanınca artar; S2G her gece 1 kez)
+      idn: {},
+      spawns: {},
+      debugRoles: {}, // debug: { oyuncuId: rolId } (bir sonraki tur / canlı rol değişimi)
+      botPos: {}, // debug: { botId: [x, y, z, yaw] } botlar bulundukları yerde sabit durur
+      dbg: {}, // debug: { oyuncuId: { god, ghost, noclip, mute, items } } — turlar arasında kalır
+      settings: { ...DEFAULT_SETTINGS, ...(ctx.room?.settings || {}) },
+    };
+  }
+
+  get debug() {
+    return !!this.state.settings?.debug;
+  }
+
+  // ------------------------------------------------------------------ taşıma
+  connectedIds() {
+    return (ctx.room?.players || []).map((p) => p.id);
+  }
+  /** Gerçek (bot olmayan) oyuncular: ağ, ses ve kişisel mesajlar yalnızca bunlar içindir. */
+  humanIds() {
+    return this.connectedIds().filter((id) => !isBotId(id));
+  }
+  nameOf(id) {
+    return ctx.room?.players?.find((p) => p.id === id)?.name || id;
+  }
+
+  /** Herkese (kendim dahil) gönder. */
+  broadcast(m) {
+    ctx.net.relay('all', m);
+    this.loop(m);
+  }
+  sendTo(id, m) {
+    if (isBotId(id)) return; // botlara ağ mesajı gitmez
+    if (id === ctx.myId) this.loop(m);
+    else ctx.net.relay(id, m);
+  }
+  sendToMany(ids, m) {
+    const others = ids.filter((id) => id !== ctx.myId && !isBotId(id));
+    if (others.length) ctx.net.relay(others, m);
+    if (ids.includes(ctx.myId)) this.loop(m);
+  }
+  /** Host'un kendi istemcisine: yeniden giriş (re-entrancy) olmasın diye mikro-görev kuyruğu. */
+  loop(m) {
+    queueMicrotask(() => ctx.client?.onMessage(ctx.myId, m));
+  }
+
+  systemChat(text) {
+    this.broadcast({ t: 'chat', ch: 'sys', text });
+  }
+
+  // ------------------------------------------------------------------ kişisel durum
+  sendMe(id) {
+    const S = this.state;
+    const st = S.players[id];
+    if (!st || isBotId(id)) return; // botların istemcisi yok
+    const w = this.combat.weaponOf(id);
+    const mag = w ? E[w].magazine || 0 : 0;
+    this.sendTo(id, {
+      t: 'me',
+      hp: Math.max(0, Math.round(st.hp)),
+      alive: st.alive,
+      ammo: mag ? st.ammo : null,
+      mag,
+      reload: st.reloadLeft > 0 ? Math.round(st.reloadLeft * 10) / 10 : 0,
+      abilityCd: Math.round(st.abilityCd * 10) / 10,
+      baiter: S.baiterId === id,
+      baiterUsed: S.baiterUsed,
+      knifeAway: st.role === 'killer' && S.knife.s !== 'held',
+      mediumTarget: st.mediumTarget,
+      mediumMutual: st.mediumMutual,
+      s2gUsed: st.role === 's2g' && st.s2gNight === S.nightNo, // bu gece fermuarını kullandı mı
+      items: st.items || [], // gizli eşyalar (slot 3, 4, 5 … sırasıyla)
+      slot: st.slot || 1,
+      god: !!S.dbg?.[id]?.god,
+    });
+  }
+
+  /** Oyuncuya "kim neyi biliyor" bilgisini gönderir. */
+  sendVis(id) {
+    if (isBotId(id)) return;
+    const S = this.state;
+    const st = S.players[id];
+    if (!st) {
+      this.sendTo(id, { t: 'vis', role: null, v: {} });
+      return;
+    }
+    const lover = S.lovers?.includes(id) ? S.lovers.find((x) => x !== id) : null;
+    // Debug odasında herkes herkesin rolünü görür (TAB listesi): ölü oyuncunun görünürlüğüyle hesaplanır.
+    const view = this.debug ? { ...S, players: { ...S.players, [id]: { ...st, alive: false } } } : S;
+    this.sendTo(id, { t: 'vis', role: st.role, v: computeVisibility(id, view), lover, baiter: S.baiterId === id });
+  }
+  sendVisToAll() {
+    for (const id of this.humanIds()) this.sendVis(id);
+  }
+
+  // ------------------------------------------------------------------ gelen mesajlar
+  onMessage(from, d) {
+    if (!d || typeof d.t !== 'string') return;
+    const S = this.state;
+    const st = S.players[from];
+    const live = S.phase === 'playing' && st?.alive;
+    const w = ctx.world;
+    switch (d.t) {
+      case 'hello':
+        this.onHello(from);
+        break;
+      case 'pos':
+        this.onPos(from, d);
+        break;
+      case 'act':
+        if (live) this.onAct(from, d.a);
+        break;
+      case 'grab':
+        if (live) w.grab.hostGrab(from, d);
+        break;
+      case 'drop':
+        w.grab.hostDrop(from, d);
+        break;
+      case 'throw':
+        w.grab.hostThrow(from, d);
+        break;
+      case 'carry':
+        if (live || !d.on) ctx.corpses.hostCarry(from, d);
+        break;
+      case 'knifePickup':
+        this.combat.onKnifePickup(from);
+        break;
+      case 'equip':
+        this.combat.onEquip(from, !!d.on, d.slot);
+        break;
+      case 'fire':
+        this.combat.onFire(from, d);
+        break;
+      case 'alt':
+        this.combat.onAlt(from, d);
+        break;
+      case 'reload':
+        this.combat.onReload(from);
+        break;
+      case 'ability':
+        this.combat.onAbility(from, d);
+        break;
+      case 'baiter':
+        this.combat.onBaiter(from, d);
+        break;
+      case 'sound':
+        this.combat.onSound(from, d);
+        break;
+      case 'chat':
+        this.onChat(from, d);
+        break;
+      case 'spec':
+        if (st && !st.alive) st.spec = typeof d.id === 'string' ? d.id : null;
+        break;
+      default:
+        break;
+    }
+  }
+
+  onPos(from, d) {
+    if (![d.x, d.y, d.z].every(Number.isFinite)) return;
+    const p = ctx.players.get(from);
+    if (!p) return;
+    if (from !== ctx.myId) p.applyNet(d);
+    this.posBuf.set(from, d);
+    if (d.h) ctx.world.grab.hostOnHoldPose(from, d.h);
+    if (d.c) ctx.corpses.hostOnCarryPose(from, d.c);
+  }
+
+  onAct(from, a) {
+    if (!a || typeof a.k !== 'string') return;
+    const ev = ctx.world.hostAct(a, { from });
+    if (!ev) return;
+    this.broadcast({ t: 'ev', e: ev });
+  }
+
+  /**
+   * Bedeni olan (canlı) oyuncular: [{ id, pos, wx, wz, crouch }] — pos ayak konumu.
+   * Kapı çarpması, idam alanı ve dönen tablolar (midPaints.js) bunu kullanır. wx/wz: oyuncunun istediği yatay hız (konum paketinden).
+   */
+  bodies() {
+    const out = [];
+    for (const [id, p] of ctx.players.map) {
+      if (!this.state.players[id]?.alive) continue;
+      const net = this.posBuf.get(id);
+      out.push({ id, pos: truePos(p), wx: net?.wx || 0, wz: net?.wz || 0, crouch: !!p.crouch });
+    }
+    return out;
+  }
+
+  /** Serbest dönen tabloları (MidPaint_*) ilerletir: oyuncu itişi + eşya darbeleri + engel testi + ağ yayını. Yalnızca tur sürerken oyuncular iter. */
+  tickMidPaints(dt) {
+    const mp = ctx.world.midPaints;
+    if (!mp?.list.length) return;
+    mp.hostUpdate(dt, this.state.phase === 'lobby' ? [] : this.bodies());
+  }
+
+  /** Hareket halindeki kapı bir oyuncuya çarparsa yönünü tersine çevirir (doors.js → hostBlockCheck). */
+  checkDoors(dt) {
+    const doors = ctx.world.doors;
+    if (!doors.doors.size || this.state.phase === 'lobby') return;
+    for (const e of doors.hostBlockCheck(this.bodies(), dt)) this.broadcast({ t: 'ev', e });
+  }
+
+  /** İdam şalteri AÇIKKEN alandaki canlılara düzenli hasar (execution.js → hostTick). Yalnızca tur sürerken. */
+  tickExecution(dt) {
+    const ex = ctx.world.execution;
+    if (!ex.on || this.state.phase !== 'playing') {
+      ex.acc = 0;
+      return;
+    }
+    for (const h of ex.hostTick(dt, this.bodies())) this.combat.damage(h.id, h.dmg, null, 'execution');
+  }
+
+  /** Yeni gelen oyuncunun tam senkronu (geç katılanlar o round için izleyici olur). */
+  onHello(from) {
+    const S = this.state;
+    if (S.phase !== 'lobby' && !S.players[from]) {
+      S.players[from] = {
+        role: 'civilian', alive: false, hp: 0, spectator: true, eq: 0, slot: 1, items: [], ammoMap: {}, ammo: 0, reloadLeft: 0, cdLeft: 0, soundCd: 0, frozen: 0,
+        abilityCd: 0, fuse: 0, sleepLeft: 0, mediumTarget: null, mediumMutual: false, spec: null,
+      };
+    }
+    const alive = {};
+    for (const [id, st] of Object.entries(S.players)) alive[id] = st.alive ? 1 : 0;
+    const roles = {};
+    if (S.phase === 'ended') for (const [id, st] of Object.entries(S.players)) if (!st.spectator) roles[id] = st.role;
+    this.sendTo(from, {
+      t: 'sync',
+      phase: S.phase,
+      round: S.round,
+      mode: S.mode,
+      time: S.time,
+      limit: S.limit,
+      revealLeft: S.revealLeft,
+      endLeft: S.endTimer,
+      winner: S.winner,
+      roles,
+      alive,
+      idn: S.idn,
+      knife: S.knife,
+      hostId: ctx.myId,
+      settings: S.settings,
+      world: ctx.world.getState(),
+      corpses: ctx.corpses.getState(),
+    });
+    this.sendVis(from);
+    this.sendMe(from);
+    if (this.debug && S.phase !== 'lobby' && S.players[from]?.spectator) {
+      this.sendTo(from, { t: 'note', text: 'Debug odası: bir sonraki "Turu yenile" ile oyuna girersin.' });
+      this.systemChat(`${this.nameOf(from)} izleyici olarak katıldı. Host "Turu yenile" derse oyuna dahil olur.`);
+    }
+  }
+
+  /** Sunucudan "oyuncu ayrıldı" geldiğinde (oyuncu varlığı henüz silinmeden) çağrılır. */
+  onPeerLeft(id) {
+    const S = this.state;
+    const st = S.players[id];
+    this.posBuf.delete(id);
+    this.chatLast.delete(id);
+    this.lastRoutes.delete(id);
+    if (isBotId(id)) {
+      // debug botu kaldırıldı: sessizce sil (ölüm / ceset olayı yok)
+      delete S.players[id];
+      delete S.debugRoles[id];
+      delete S.botPos[id];
+      delete S.dbg[id];
+      delete S.idn[id];
+      delete S.spawns[id];
+      return;
+    }
+    ctx.world.grab.hostRelease(id);
+    ctx.corpses.hostRelease(id);
+    if (!st) return;
+    if (st.alive && (S.phase === 'playing' || S.phase === 'reveal')) {
+      if (S.phase === 'reveal') {
+        st.alive = false;
+        st.hp = 0;
+        this.rounds.checkWin();
+      } else this.combat.kill(id, null, 'left');
+    }
+    if (S.baiterId === id) S.baiterId = null;
+    st.left = true;
+    st.spectator = true;
+    st.alive = false;
+    if (S.phase === 'lobby') delete S.players[id];
+  }
+
+  // ------------------------------------------------------------------ sohbet
+  onChat(from, d) {
+    const S = this.state;
+    const C = GAME_CONFIG.chat;
+    const text = cleanText(d.text, C.maxLength);
+    if (!text) return;
+    if (S.dbg?.[from]?.mute) {
+      this.sendTo(from, { t: 'note', text: 'Host seni susturdu.' }); // debug: susturulan yazamaz da
+      return;
+    }
+    const nowMs = Date.now();
+    if (nowMs - (this.chatLast.get(from) || 0) < C.cooldownMs) return;
+    this.chatLast.set(from, nowMs);
+    const st = S.players[from];
+    const idn = S.idn[from];
+    const inGame = S.phase === 'playing' || S.phase === 'reveal';
+    let ch = 'all';
+    let label = this.nameOf(from);
+    let color = 0xffffff;
+    let recipients = this.humanIds();
+    if (S.phase !== 'lobby') {
+      label = idn?.l || `${this.nameOf(from)} (izleyici)`;
+      color = idn?.c ?? 0x9aa4b2;
+    }
+    if (inGame) {
+      if (!st || !st.alive) {
+        ch = 'dead';
+        if (S.settings.deadChat !== 'all') {
+          recipients = recipients.filter((id) => !S.players[id]?.alive);
+        }
+      } else {
+        // yaşayanlar yalnızca yakındakilere yazabilir (yakınlık sohbeti)
+        ch = 'say';
+        const me = ctx.players.get(from);
+        recipients = recipients.filter((id) => {
+          if (id === from) return true;
+          const o = S.players[id];
+          const op = ctx.players.get(id);
+          if (!o?.alive || !me || !op) return false;
+          return truePos(me).distanceTo(truePos(op)) <= V.shoutDistance;
+        });
+      }
+    }
+    this.sendToMany(recipients, { t: 'chat', from, ch, text, l: label, c: color });
+  }
+
+  // ------------------------------------------------------------------ yönetim (host arayüzünden)
+  startGame() {
+    const S = this.state;
+    if (S.phase === 'reveal' || S.phase === 'playing') return false;
+    return this.rounds.startRound();
+  }
+  backToLobby() {
+    this.rounds.toLobby();
+  }
+  setSettings(patch) {
+    const S = this.state;
+    S.settings = { ...S.settings, ...patch };
+    ctx.net.roomUpdate({ settings: S.settings });
+  }
+
+  // ------------------------------------------------------------------ debug odası (yalnızca host; settings.debug === true)
+  /** Turu baştan başlatır: herkes yeniden doğar (ölüler dirilir), botlar bulundukları yerde kalır. */
+  debugRestart() {
+    if (!this.debug) return false;
+    return this.rounds.startRound();
+  }
+
+  /** Bir oyuncunun (ya da botun) rolünü seçer. Tur sürüyorsa anında uygulanır, değilse tur başında geçerli olur. */
+  debugSetRole(id, roleId) {
+    const S = this.state;
+    if (!this.debug || !ROLES[roleId] || !this.connectedIds().includes(id)) return;
+    S.debugRoles[id] = roleId;
+    const st = S.players[id];
+    if (!st || st.spectator || (S.phase !== 'playing' && S.phase !== 'reveal')) return;
+    const fresh = newPlayerState(roleId);
+    fresh.alive = st.alive;
+    fresh.hp = st.alive ? st.hp : 0;
+    fresh.spec = st.spec;
+    fresh.items = st.items || []; // gizli eşyalar rol değişince kalır
+    S.players[id] = fresh;
+    // Tek bıçak: katil olan bıçağı alır; katil rolünden çıkan bıçaktan kurtulur.
+    if (roleId === 'killer') this.combat.knifeBack(id, false);
+    else if (S.knife.from === id) {
+      S.knife = { s: 'held', p: [0, 0, 0], v: [0, 0, 0], ret: 0, delay: 0, from: null };
+      this.broadcast({ t: 'knife', s: 'held' });
+    }
+    if (S.baiterId === id) S.baiterId = null;
+    this.sendVisToAll();
+    this.sendMe(id);
+  }
+
+  /**
+   * Hareketsiz (yapay zekasız) bot ekler. pos: [x, y, z] ayak konumu (verilmezse rastgele spawn), yaw: bakış yönü.
+   * Bot, odadaki oyuncu listesine "bot-..." kimliğiyle girer; vurulabilir, ölünce ceset bırakır, sesi yoktur.
+   */
+  debugSpawnBot({ role = 'civilian', pos = null, yaw = 0 } = {}) {
+    const S = this.state;
+    if (!this.debug || !ROLES[role]) return null;
+    if (this.connectedIds().filter(isBotId).length >= GAME_CONFIG.debug.maxBots) {
+      this.systemChat(`En fazla ${GAME_CONFIG.debug.maxBots} bot eklenebilir.`);
+      return null;
+    }
+    let at = pos;
+    let face = yaw;
+    if (!at) {
+      const sp = ctx.world.randomSpawn();
+      at = [sp.pos.x, sp.pos.y, sp.pos.z];
+      face = sp.yaw;
+    }
+    const id = ctx.net.addBot('Bot');
+    if (!id) return null;
+    const p = [round3(at[0]), round3(at[1]), round3(at[2]), round3(face)];
+    S.botPos[id] = p;
+    S.debugRoles[id] = role;
+    if (S.phase === 'reveal' || S.phase === 'playing') {
+      S.players[id] = newPlayerState(role);
+      S.idn[id] = makeIdentities([id], { [id]: role }, S.mode)[id];
+      S.spawns[id] = p.slice();
+      this.seedBot(id);
+      this.broadcast({ t: 'bot', id, p, idn: S.idn[id] });
+      this.sendVisToAll();
+    }
+    return id;
+  }
+
+  /** Botun sabit konum paketini hazırlar (poss içinde yayınlanır: sonradan gelenler de botu doğru yerde görür). */
+  seedBot(id) {
+    const p = this.state.botPos[id];
+    if (!p) return;
+    this.posBuf.set(id, { x: p[0], y: p[1], z: p[2], yaw: p[3], pitch: 0, m: 0, f: 0, tl: 1, tk: 0, h: null, c: null });
+  }
+
+  debugRemoveBot(id) {
+    if (!this.debug || !isBotId(id)) return;
+    this.broadcast({ t: 'corpseGone', id }); // varsa cesedi de kalksın
+    ctx.net.removeBot(id);
+  }
+
+  debugClearBots() {
+    for (const id of this.connectedIds().filter(isBotId)) this.debugRemoveBot(id);
+  }
+
+  // ------------------------------------------------------------------ debug: oyuncu işlemleri (host paneli; botlar da hedef olabilir)
+  _dbgOk(id) {
+    return this.debug && this.connectedIds().includes(id);
+  }
+
+  debugFlagOf(id, key) {
+    return !!this.state.dbg?.[id]?.[key];
+  }
+
+  /** Debug işareti: god (ölümsüz) · ghost (görünmez) · noclip · mute (susturulmuş). Sahibine 'dbgFlag' / 'mute' gider. */
+  debugFlag(id, key, on) {
+    if (!this._dbgOk(id) || !['god', 'ghost', 'noclip', 'mute'].includes(key)) return;
+    const f = (this.state.dbg[id] = this.state.dbg[id] || {});
+    f[key] = !!on;
+    if (key === 'mute') {
+      this.sendTo(id, { t: 'mute', on: f.mute ? 1 : 0 });
+      this.routeT = 99; // ses yolları hemen yenilensin
+    } else this.sendTo(id, { t: 'dbgFlag', key, on: f[key] ? 1 : 0 });
+    this.sendMe(id);
+  }
+
+  debugKill(id) {
+    if (!this._dbgOk(id) || !this.state.players[id]?.alive) return;
+    this.combat.kill(id, null, 'debug', null, true); // ölümsüzlüğü de aşar
+  }
+
+  debugExplode(id) {
+    if (!this._dbgOk(id) || !this.state.players[id]) return;
+    this.combat.explode(id);
+  }
+
+  /** Öleni diriltir. at: 'spawn' (doğma noktası) | 'corpse' (cesedinin durduğu yer; ceset yok olur). */
+  debugRevive(id, at = 'spawn') {
+    const S = this.state;
+    const st = S.players[id];
+    if (!this._dbgOk(id) || !st || st.alive || st.spectator || (S.phase !== 'playing' && S.phase !== 'reveal')) return false;
+    let pos = null;
+    let yaw = ctx.players.get(id)?.yaw || 0;
+    if (at === 'corpse') pos = ctx.corpses.hostFeetOf(id);
+    const fromCorpse = !!pos;
+    if (!pos) {
+      const sp = S.spawns[id];
+      if (!sp) return false;
+      pos = { x: sp[0], y: sp[1], z: sp[2] };
+      yaw = sp[3] ?? yaw;
+    }
+    const fresh = newPlayerState(st.role);
+    fresh.items = st.items || [];
+    S.players[id] = fresh;
+    const p = [round3(pos.x), round3(pos.y), round3(pos.z)];
+    if (isBotId(id)) {
+      S.botPos[id] = [...p, round3(yaw)];
+      this.seedBot(id);
+    }
+    if (fromCorpse) this.broadcast({ t: 'corpseGone', id }); // cesedinde dirilince ceset kalkar
+    this.broadcast({ t: 'revive', id, p, yaw: round3(yaw) });
+    this.sendVisToAll();
+    this.sendMe(id);
+    return true;
+  }
+
+  /** Oyuncuyu / botu verilen konuma taşır (botlar host'ta sabit durur: konum paketi güncellenir). */
+  _moveTo(id, x, y, z, yaw) {
+    const p = [round3(x), round3(y), round3(z)];
+    if (isBotId(id)) {
+      this.state.botPos[id] = [...p, round3(yaw)];
+      this.seedBot(id);
+    } else this.sendTo(id, { t: 'teleport', p, yaw: round3(yaw) });
+  }
+
+  /** id → hedefin hemen arkasına (duvar varsa yaklaştırılarak). */
+  debugGoto(id, toId) {
+    const tp = ctx.players.get(toId);
+    if (!this._dbgOk(id) || !tp || id === toId) return;
+    const t = truePos(tp);
+    const yaw = tp.yaw || 0;
+    const o = new THREE.Vector3(t.x, t.y + 1, t.z);
+    const d = new THREE.Vector3(-Math.sin(yaw), 0, -Math.cos(yaw));
+    const hit = ctx.world.collision.raycast(o, d, 1);
+    const dist = hit ? Math.max(0, hit.distance - 0.45) : 0.9;
+    this._moveTo(id, t.x + d.x * dist, t.y, t.z + d.z * dist, yaw);
+  }
+
+  /** id → whoId'nin tam önüne (bakışının 1.8 m ilerisine; duvar varsa yaklaştırılarak), ona dönük. */
+  debugBring(id, whoId) {
+    const wp = ctx.players.get(whoId);
+    if (!this._dbgOk(id) || !wp || id === whoId) return;
+    const w = truePos(wp);
+    const yaw = wp.yaw || 0;
+    const o = new THREE.Vector3(w.x, w.y + 1, w.z);
+    const d = new THREE.Vector3(Math.sin(yaw), 0, Math.cos(yaw));
+    const hit = ctx.world.collision.raycast(o, d, 1.8);
+    const dist = hit ? Math.max(0.4, hit.distance - 0.45) : 1.8;
+    this._moveTo(id, w.x + d.x * dist, w.y, w.z + d.z * dist, yaw + Math.PI);
+  }
+
+  /** Ekrana yazı: id verilirse yalnızca o oyuncunun, null ise herkesin ekranına (dur sn). */
+  debugText(id, text, dur = 6) {
+    const t = cleanText(text, 160);
+    if (!this.debug || !t) return;
+    const m = { t: 'screenText', text: t, dur: Math.max(1, Math.min(30, Number(dur) || 6)) };
+    if (id) this.sendTo(id, m);
+    else this.broadcast(m);
+  }
+
+  /** Gizli eşya ver / al. Slot sırası verilme sırasına göre: ilk verilen 3, sonraki 4, ... */
+  debugGive(id, item, on = true) {
+    const st = this.state.players[id];
+    if (!this._dbgOk(id) || !st || !E[item]?.item) return;
+    const items = (st.items = st.items || []);
+    const i = items.indexOf(item);
+    if (on && i < 0) items.push(item);
+    else if (!on && i >= 0) {
+      const held = st.slot === i + 3;
+      items.splice(i, 1);
+      if (held) this.combat.onEquip(id, 0, 1);
+      else if (st.slot > i + 3) st.slot--; // sonrakilerin slot numarası kayar
+    }
+    const f = (this.state.dbg[id] = this.state.dbg[id] || {});
+    f.items = items.slice(); // "Turu yenile" sonrası da kalsın
+    this.sendMe(id);
+  }
+
+  // ------------------------------------------------------------------ her kare
+  update(dt) {
+    const S = this.state;
+    ctx.world.grab.hostUpdate(dt);
+    ctx.corpses.hostUpdate(dt);
+    this.combat.update(dt);
+    this.rounds.update(dt);
+    this.checkDoors(dt);
+    this.tickExecution(dt);
+    this.tickMidPaints(dt);
+
+    if (this.posRate.tick(dt)) this.flushPositions();
+
+    this.routeT += dt;
+    if (this.routeT >= V.routeInterval) {
+      this.routeT = 0;
+      this.routeVoice();
+    }
+
+    this.meT += dt;
+    if (this.meT >= 2) {
+      this.meT = 0;
+      if (S.phase === 'playing') for (const id of Object.keys(S.players)) if (S.players[id].alive && !isBotId(id)) this.sendMe(id);
+    }
+  }
+
+  /** Konumları tek paket halinde yayınlar. */
+  flushPositions() {
+    const S = this.state;
+    const l = {};
+    let n = 0;
+    for (const [id, d] of this.posBuf) {
+      const st = S.players[id];
+      if (S.phase !== 'lobby' && !st?.alive) continue;
+      l[id] = {
+        x: d.x, y: d.y, z: d.z, yaw: d.yaw, pitch: d.pitch, m: d.m, cr: d.cr, f: d.f, tl: d.tl, tk: d.tk,
+        h: d.h ? { i: d.h.i } : null,
+        c: d.c ? { i: d.c.i } : null, // taşınan cesedin kimliği (hedef noktası yalnızca host'a lazım)
+        e: this.combat.eqVisible(id) ? this.combat.weaponOf(id) : 0,
+        ar: d.ar ? 1 : 0, // havada (animasyon)
+        cl: d.cl ? 1 : 0, // tırmanıyor (animasyon)
+        iv: S.dbg?.[id]?.ghost ? 1 : 0, // debug: görünmez (yalnızca host belirler)
+      };
+      n++;
+    }
+    if (n) this.broadcast({ t: 'poss', l });
+  }
+
+  // ------------------------------------------------------------------ yakınlık sesi: kim kimi duyar?
+  routeVoice() {
+    const S = this.state;
+    const silent = S.mode === 'silent'; // sessiz modda yalnızca hayattaki dedektif konuşur (herkes onu dinler)
+    if (S.mode !== 'voice' && !silent) {
+      for (const id of this.humanIds()) this.pushRoute(id, []);
+      return;
+    }
+    const ids = this.humanIds(); // botların sesi yok
+    const rangeOf = (p) => [V.whisperDistance, V.normalDistance, V.shoutDistance][p?.talkLevel] ?? V.normalDistance;
+    const inGame = S.phase === 'playing' || S.phase === 'reveal';
+    const cand = []; // { a, b, ka, kb, pri }
+    const key = (a, b) => (a < b ? `${a}|${b}` : `${b}|${a}`);
+
+    const specPos = (id) => {
+      const st = S.players[id];
+      const target = st?.spec ? ctx.players.get(st.spec) : null;
+      const tp = target && S.players[st.spec]?.alive ? target : ctx.players.get(id);
+      return tp ? truePos(tp) : null;
+    };
+
+    for (let i = 0; i < ids.length; i++) {
+      for (let j = i + 1; j < ids.length; j++) {
+        const a = ids[i];
+        const b = ids[j];
+        const pa = ctx.players.get(a);
+        const pb = ctx.players.get(b);
+        if (!pa || !pb) continue;
+        let ka = null; // a, b'yi nasıl duyar (0 yakınlık, 1 tam ses, 2 sessiz)
+        let kb = null;
+        let pri = 5;
+        if (silent) {
+          const det = (id) => !!S.players[id]?.alive && S.players[id].role === 'detective';
+          if (!inGame || (!det(a) && !det(b))) continue; // lobide / dedektif dışı çiftlerde ses bağlantısı yok
+        }
+        if (!inGame) {
+          ka = kb = 1; // lobi / tur sonu: herkes herkesle konuşabilir
+        } else {
+          const sa = S.players[a];
+          const sb = S.players[b];
+          const aliveA = !!sa?.alive;
+          const aliveB = !!sb?.alive;
+          const ex = this.links.has(key(a, b));
+          const margin = ex ? V.disconnectMargin : V.connectMargin;
+          if (!aliveA && !aliveB) {
+            ka = kb = 1; // hayalet kanalı
+            pri = 3;
+          } else if (aliveA && aliveB) {
+            const dist = truePos(pa).distanceTo(truePos(pb));
+            if (dist <= Math.max(rangeOf(pa), rangeOf(pb)) + margin) ka = kb = 0;
+            pri = dist;
+          } else {
+            const deadId = aliveA ? b : a;
+            const liveId = aliveA ? a : b;
+            const lp = specPos(deadId);
+            const live = ctx.players.get(liveId);
+            if (lp && live) {
+              const dist = lp.distanceTo(truePos(live));
+              if (dist <= rangeOf(live) + margin) {
+                // ölü yakındakini duyar (0); yaşayan ölüyü duymaz (2)
+                if (aliveA) {
+                  ka = 2;
+                  kb = 0;
+                } else {
+                  ka = 0;
+                  kb = 2;
+                }
+                pri = dist;
+              }
+            }
+          }
+          // Medyum bağlantısı
+          const mediumLink = (mId, tId) => {
+            const m = S.players[mId];
+            return m?.alive && m.mediumTarget === tId && S.players[tId]?.alive;
+          };
+          if (mediumLink(a, b)) {
+            ka = 1;
+            if (kb === null || kb === 2) kb = S.players[a].mediumMutual ? 1 : 0;
+            else if (S.players[a].mediumMutual) kb = 1;
+            pri = 0;
+          } else if (mediumLink(b, a)) {
+            kb = 1;
+            if (ka === null || ka === 2) ka = S.players[b].mediumMutual ? 1 : 0;
+            else if (S.players[b].mediumMutual) ka = 1;
+            pri = 0;
+          }
+        }
+        if (ka === null || kb === null) continue;
+        if (S.dbg?.[b]?.mute) ka = 2; // debug: susturulan kimse tarafından duyulmaz
+        if (S.dbg?.[a]?.mute) kb = 2;
+        cand.push({ a, b, ka, kb, pri });
+      }
+    }
+
+    // oyuncu başına bağlantı sınırı (en yakınlar / medyum öncelikli)
+    cand.sort((x, y) => x.pri - y.pri);
+    const count = {};
+    const routes = new Map(ids.map((id) => [id, []]));
+    const nextLinks = new Set();
+    for (const c of cand) {
+      if ((count[c.a] || 0) >= V.maxConnectionsPerPeer || (count[c.b] || 0) >= V.maxConnectionsPerPeer) continue;
+      count[c.a] = (count[c.a] || 0) + 1;
+      count[c.b] = (count[c.b] || 0) + 1;
+      routes.get(c.a).push([c.b, c.ka]);
+      routes.get(c.b).push([c.a, c.kb]);
+      nextLinks.add(key(c.a, c.b));
+    }
+    this.links = nextLinks;
+    for (const [id, list] of routes) this.pushRoute(id, list);
+  }
+
+  pushRoute(id, list) {
+    list.sort((x, y) => (x[0] < y[0] ? -1 : 1));
+    const s = JSON.stringify(list);
+    if (this.lastRoutes.get(id) === s) return;
+    this.lastRoutes.set(id, s);
+    this.sendTo(id, { t: 'vr', l: list });
+  }
+
+}

@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="tr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+  <meta name="theme-color" content="#0b0d12" />
+  <title>Irgat Murder</title>
+  <link rel="stylesheet" href="./style.css" />
+
+  <!-- Oyun kütüphaneleri CDN'den yüklenir; kendi Node.js oyun sunucun gerekmez. -->
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js",
+        "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/",
+        "three-mesh-bvh": "https://cdn.jsdelivr.net/npm/three-mesh-bvh@0.8.3/build/index.module.js"
+      }
+    }
+  </script>
+  <!-- PeerJS Cloud sinyal sunucusu; DataConnection ve WebRTC ses için. -->
+  <script src="https://cdn.jsdelivr.net/npm/peerjs@1.5.5/dist/peerjs.min.js"></script>
+</head>
+<body>
+  <canvas id="game" tabindex="0"></canvas>
+  <div id="ui"></div>
+  <div id="voice-audio" hidden></div>
+
+  <div id="loading">
+    <div class="loading-card">
+      <div class="loading-logo">IRGAT <span>MURDER</span></div>
+      <div id="loading-text">Yükleniyor…</div>
+      <div class="loading-track"><div id="loading-bar"></div></div>
+      <noscript>Bu oyun için JavaScript gerekli.</noscript>
+    </div>
+  </div>
+
+  <script type="module" src="./js/main.js"></script>
+</body>
+</html>
