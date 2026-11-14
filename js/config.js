@@ -51,7 +51,7 @@ export const GAME_CONFIG = {
     snapDown: 0.5,
     walkableY: 0.55, // yüzey normalinin Y bileşeni bundan büyükse (≈ 56° altı eğim) YÜRÜNEBİLİR zemindir: yalnızca yukarı itilir, yana kaymaz
     // Eğilme (Ctrl, tuş atamadan değişir): basılı tutulur. Daha alçak kapsül, daha alçak göz, yavaş yürüme; tavan altındaysa kalkamaz.
-    crouchHeight: 1.25,
+    crouchHeight: 0.85,
     crouchEyeHeight: 1.05,
     crouchSpeed: 0.5, // yürüme hızı çarpanı
     crouchBlend: 11, // göz yüksekliği geçişinin hızı (büyük = hızlı)
