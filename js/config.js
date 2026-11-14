@@ -477,7 +477,7 @@ export const DEFAULT_KEYS = {
   reload: 'KeyR',
   chat: 'Enter',
   debug: 'F2', // debug panelini aç/kapat (yalnızca debug odasında)
-  collisionView: 'F3', // Collision_* nesnelerini göster / gizle (yarı saydam turuncu)
+  collisionView: '', // Collision_* nesnelerini göster / gizle (yarı saydam turuncu)
   menu: 'Escape',
   prevSpectate: 'ArrowLeft',
   nextSpectate: 'ArrowRight',

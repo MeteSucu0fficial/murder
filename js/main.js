@@ -130,7 +130,7 @@ async function boot() {
     ctx.ui.toast(on ? 'Çarpışma nesneleri görünür' : 'Çarpışma nesneleri gizli', 1200);
     return on;
   };
-  if (ctx.world.collisionMode === 'collision' && ctx.settings.showCollision !== false) ctx.world.setCollisionView(true);
+  if (ctx.world.collisionMode === 'collision' && ctx.settings.showCollision !== false) ctx.world.setCollisionView(false);
 
   window.__game = ctx; // hata ayıklama için konsoldan erişim
   setLoading('Hazır', 1);
