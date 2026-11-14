@@ -336,9 +336,9 @@ export const GAME_CONFIG = {
 // shadows: fener (SpotLight) gölge haritası kullanır → ışık duvardan geçmez. shadowMap: gölge dokusu boyutu.
 // "low" kalitede gölge yoktur; onun yerine fener menzili baktığın duvara göre kısılır.
 export const QUALITY_PRESETS = {
-  low: { pixelRatio: 1, antialias: false, lambert: true, maxLights: 15, shadows: false, shadowMap: 0 },
-  medium: { pixelRatio: 1.25, antialias: false, lambert: false, maxLights: 30, shadows: true, shadowMap: 512 },
-  high: { pixelRatio: 2, antialias: true, lambert: false, maxLights: 45, shadows: true, shadowMap: 1024 },
+  low: { pixelRatio: 1, antialias: false, lambert: true, maxLights: 5, shadows: false, shadowMap: 0 },
+  medium: { pixelRatio: 1.25, antialias: false, lambert: false, maxLights: 10, shadows: true, shadowMap: 128 },
+  high: { pixelRatio: 1.5, antialias: true, lambert: false, maxLights: 20, shadows: true, shadowMap: 256 },
 };
 
 // ---------------------------------------------------------------------
