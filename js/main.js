@@ -90,7 +90,7 @@ async function boot() {
   ctx.voiceRadial = new RadialMenu(uiRoot, VOICE_MENU); // C (basılı tut): fısıltı / normal / bağırma
   ctx.playerList = new PlayerList(uiRoot);
   ctx.debug = new DebugPanel(uiRoot); // yalnızca debug odasının host'unda açılır
-  const mobile = isTouchDevice() ? new MobileControls(uiRoot) : null;
+  // const mobile = isTouchDevice() ? new MobileControls(uiRoot) : null;
 
   ctx.client.attach(ctx.net);
   ctx.ui.attach(ctx.net);
