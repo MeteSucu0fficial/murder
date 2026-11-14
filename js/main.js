@@ -131,6 +131,7 @@ async function boot() {
     return on;
   };
   if (ctx.world.collisionMode === 'collision' && ctx.settings.showCollision !== false) ctx.world.setCollisionView(false);
+    if (ctx.world.collisionMode === 'collision' && ctx.settings.showCollision !== true) ctx.world.setCollisionView(false);
 
   window.__game = ctx; // hata ayıklama için konsoldan erişim
   setLoading('Hazır', 1);
