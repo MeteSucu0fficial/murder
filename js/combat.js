@@ -4,7 +4,7 @@ import * as THREE from 'three';
 import { GAME_CONFIG, RADIAL_MENU_ITEMS } from './config.js';
 import { audio } from './audio.js';
 import { ctx } from './context.js';
-import { ROLES } from './roles.js';
+import { ROLES, loverPartner } from './roles.js';
 import { isNight } from './lights.js';
 import { pick, round3 } from './util.js';
 
@@ -623,10 +623,8 @@ export class CombatSystem {
     // Katil öldüyse bıçak artık geri dönmez
     if (st.role === 'killer' && S.knife.s !== 'held') this.knifeBack(id, false);
     // Sevgili: biri elenirse diğeri de elenir
-    if (S.lovers?.includes(id)) {
-      const other = S.lovers.find((x) => x !== id);
-      if (other && S.players[other]?.alive) this.kill(other, by, 'lover');
-    }
+    const other = loverPartner(S.lovers, id);
+    if (other && S.players[other]?.alive) this.kill(other, by, 'lover');
     this.host.sendMe(id);
     this.host.sendVisToAll();
     if (!this.deferWin) this.host.rounds.checkWin();

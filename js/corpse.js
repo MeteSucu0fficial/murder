@@ -36,6 +36,7 @@ export class CorpseManager {
   spawn({ id, p = null, yaw = 0, color = 0x888888, imp = null, pts = null, asleep = false, by = null, pi = -1 }) {
     this.remove(id);
     const view = new RagdollView(color, { skin: skinTone(id) }); // yaşarken olduğu ten rengi (açık / kahverengi)
+    view.setFace(ctx.players?.get(id)?.identity?.face); // ve yüzü
     ctx.sceneMgr.actorGroup.add(view.group);
     const c = {
       id,

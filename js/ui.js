@@ -3,13 +3,13 @@
 import { GAME_CONFIG, KEYS } from './config.js';
 import { ctx } from './context.js';
 import { audio } from './audio.js';
-import { MANDATORY_ROLES, ROLES, ROLE_MAX_PICK, ROLE_PRIORITY, SECONDARY, roleRanges } from './roles.js';
+import { LOVER_MAX_PICK, MANDATORY_ROLES, ROLES, ROLE_MAX_PICK, ROLE_PRIORITY, SECONDARY, loverLimits, roleRanges } from './roles.js';
 import { LEVEL_NAMES } from './voice.js';
 import { buildFallbackHouse } from './fallbackHouse.js';
 import { isNight } from './lights.js';
 import { DEBUG_ROLE_OPTIONS } from './debug.js';
 import { KEY_ACTIONS, actionLabel, keyLabel, resetKeys, setKey } from './keybinds.js';
-import { h, fmtTime, store, isTouchDevice, isBotId, colorCss } from './util.js';
+import { h, fmtTime, store, isBotId, colorCss } from './util.js';
 
 const ABILITY_NAMES = { sleepwalker: 'Uyurgezerlik', bomber: 'Kendini patlat', medium: 'Medyum bağlantısı', s2g: 'S2G (sik)' };
 // Tuş atama sırasında atanamayacak tarayıcı / sistem tuşları
@@ -37,7 +37,6 @@ export class UI {
     this.rolesOpen = false; // lobideki "Rol ayarları" açık mı
     this.lastBotRole = null;
     this.crosshairOn = false;
-    document.body.classList.toggle('touch', isTouchDevice());
 
     this.buildHud();
     this.buildMenu();
@@ -94,7 +93,7 @@ export class UI {
     if (ctx.input) ctx.input.enabled = !this.modalOpen();
   }
   relock() {
-    if (!isTouchDevice() && !this.modalOpen() && (ctx.phase === 'playing' || ctx.phase === 'ended')) ctx.input.requestLock();
+    if (!this.modalOpen() && (ctx.phase === 'playing' || ctx.phase === 'ended')) ctx.input.requestLock();
   }
 
   // ================================================================== bildirimler
@@ -220,7 +219,6 @@ export class UI {
     ];
     this.cPass = h('input', { class: 'input', maxlength: '32', type: 'text', placeholder: 'İsteğe bağlı' });
     this.cTime = this.select([[0, 'Sınırsız'], [5, '5 dk'], [8, '8 dk'], [10, '10 dk'], [15, '15 dk'], [20, '20 dk']], 10);
-    this.cLovers = this.check('Sevgililer olsun', true);
     this.cDead = this.select([['dead', 'Yalnızca ölüler görsün'], ['all', 'Herkes görsün']], 'dead');
     this.cDebug = this.check('Debug odası (rolleri sen seç, bot ekle, tur kendiliğinden bitmesin)', false);
     const create = h('div', { class: 'page hidden', 'data-page': 'create' },
@@ -229,9 +227,8 @@ export class UI {
       h('div', { class: 'row2' }, this.field('Oyuncu sınırı', this.cMax), this.field('Şifre', this.cPass)),
       this.field('Oyun modu', h('div', { class: 'seg' }, this.cModeBtns), 'Sesli: yakınlık sesi, herkes "Irgat" · Sessiz: yazılı sohbet + renkli kod adları; yalnızca Dedektif konuşabilir (mikrofon aç/kapa + bağırma)'),
       h('div', { class: 'row2' }, this.field('Tur süresi', this.cTime), this.field('Ölü sohbeti', this.cDead)),
-      this.cLovers.el,
       this.cDebug.el,
-      h('p', { class: 'hint' }, 'Rol sayılarını (kaç dedektif, medyum vb.) odayı kurduktan sonra lobide ayarlayabilirsin.'),
+      h('p', { class: 'hint' }, 'Rol sayılarını (kaç dedektif, medyum, sevgili çifti vb.) odayı kurduktan sonra lobide "Rol ayarları"ndan ayarlayabilirsin.'),
       h('div', { class: 'row2' }, this.btn('Geri', () => this.menuPage('main'), 'ghost'), this.btn('Oluştur', () => this.submitCreate(), 'primary')));
     this.setCreateMode('voice');
 
@@ -309,7 +306,6 @@ export class UI {
       password: this.cPass.value.trim(),
       settings: {
         roundTime: debug ? 0 : Number(this.cTime.value) * 60,
-        lovers: debug ? false : this.cLovers.input.checked,
         deadChat: this.cDead.value,
         debug,
       },
@@ -332,7 +328,7 @@ export class UI {
     store.set('debugRole', role);
     store.set('debugBots', bots);
     store.set('debugBotRole', botRole);
-    ctx.net.createLocal(name, { name: 'Debug Haritası', settings: { debug: true, roundTime: 0, lovers: false, deadChat: 'all' } });
+    ctx.net.createLocal(name, { name: 'Debug Haritası', settings: { debug: true, roundTime: 0, deadChat: 'all' } });
     const host = ctx.host; // 'joined' olayı eşzamanlı: HostGame hazır
     if (!host) {
       this.toast('Debug haritası kurulamadı.');
@@ -443,17 +439,19 @@ export class UI {
           : 'Debug odası: host rolleri ve botları ayarlıyor. Tur kendiliğinden bitmez.'));
     } else if (host) {
       const time = this.select([[0, 'Sınırsız'], [300, '5 dk'], [480, '8 dk'], [600, '10 dk'], [900, '15 dk'], [1200, '20 dk']], S.roundTime ?? GAME_CONFIG.rounds.roundTime);
-      const lovers = this.check('Sevgililer olsun', S.lovers !== false);
       const dead = this.select([['dead', 'Yalnızca ölüler görsün'], ['all', 'Herkes görsün']], S.deadChat || 'dead');
-      const apply = () => ctx.host.setSettings({ roundTime: Number(time.value), lovers: lovers.input.checked, deadChat: dead.value });
-      time.onchange = lovers.input.onchange = dead.onchange = apply;
+      // TrollHacks: misafirler konsola "TrollHacks.enabled = true;" yazıp F2 araçlarını kullanabilsin mi? (host kendi konsolundan hep açabilir)
+      const troll = this.select([['1', 'Misafirler açabilir'], ['0', 'Kapalı']], S.troll === false ? '0' : '1');
+      const apply = () => ctx.host.setSettings({ roundTime: Number(time.value), deadChat: dead.value, troll: troll.value !== '0' });
+      time.onchange = dead.onchange = troll.onchange = apply;
       this.lobbySettings.replaceChildren(
-        h('div', { class: 'row2' }, this.field('Tur süresi', time), this.field('Ölü sohbeti', dead)), lovers.el,
+        h('div', { class: 'row2' }, this.field('Tur süresi', time), this.field('Ölü sohbeti', dead)),
+        h('div', { class: 'row2' }, this.field('TrollHacks (konsol)', troll)),
         this.roleSettings(S, true));
     } else {
       const t = S.roundTime === 0 ? 'sınırsız' : `${Math.round((S.roundTime ?? GAME_CONFIG.rounds.roundTime) / 60)} dk`;
       this.lobbySettings.replaceChildren(
-        h('p', { class: 'meta' }, `Tur süresi: ${t} · Sevgililer: ${S.lovers === false ? 'kapalı' : 'açık'}`),
+        h('p', { class: 'meta' }, `Tur süresi: ${t}`),
         this.roleSettings(S, false));
     }
 
@@ -497,7 +495,9 @@ export class UI {
       .filter(([, rg]) => rg[1] > 0)
       .map(([r, rg]) => `${ROLES[r].name} ${fmt(rg)}`)
       .join(' · ');
-    const preview = h('p', { class: 'meta role-preview' }, `${n} oyuncu için roller: ${summary}`);
+    const lv = loverLimits(n, cfg);
+    const loverText = lv[1] > 0 ? ` · Sevgili çifti ${fmt(lv)}` : ' · Sevgili yok';
+    const preview = h('p', { class: 'meta role-preview' }, `${n} oyuncu için roller: ${summary}${loverText}`);
     if (!editable) return preview;
 
     const write = (r, v) => {
@@ -528,11 +528,26 @@ export class UI {
       sel.onchange = () => write(r, val());
       return h('div', { class: `rc-row${off ? ' off' : ''}` },
         h('label', { class: 'rc-name' }, on, h('i', { class: 'rc-dot', style: { background: ROLES[r].color } }), mandatory ? `${ROLES[r].name} (zorunlu)` : ROLES[r].name), sel);
-    })];
+    }), (() => {
+      // Sevgililer (Aşık): masum takımdan iki kişiyi bağlar; biri ölürse diğeri de ölür. Seçenek = en çok kaç ÇİFT.
+      const v = cfg.lover;
+      const off = v === false || v === 0 || v === '0';
+      const cur = typeof v === 'number' && v >= 1 ? String(Math.min(LOVER_MAX_PICK, Math.floor(v))) : 'auto';
+      const on = h('input', { type: 'checkbox', title: 'Sevgililer oyunda olsun' });
+      on.checked = !off;
+      const sel = this.select([['auto', `Otomatik (${GAME_CONFIG.lovers.autoMinPlayers}+ oyuncu)`], ...Array.from({ length: LOVER_MAX_PICK }, (_, i) => [i + 1, `Max ${i + 1} çift`])], cur);
+      sel.classList.add('mini');
+      sel.disabled = off;
+      const val = () => (sel.value === 'auto' ? undefined : Number(sel.value));
+      on.onchange = () => write('lover', on.checked ? val() : 0);
+      sel.onchange = () => write('lover', val());
+      return h('div', { class: `rc-row${off ? ' off' : ''}` },
+        h('label', { class: 'rc-name' }, on, h('i', { class: 'rc-dot', style: { background: SECONDARY.lover.color } }), 'Sevgililer (Aşık)'), sel);
+    })()];
     const box = h('details', { class: 'role-cfg' },
       h('summary', {}, 'Rol ayarları'),
       h('div', { class: 'rc-grid' }, rows),
-      h('small', {}, `Katil ve Dedektif zorunludur: her turda mutlaka vardır (otomatik ayarda bile). Katil hep 1 kişidir. Kutu kapalıysa o rol oyunda yoktur. "Max N": rol her turda en az 1, en çok N kişiye rastgele verilir. "Otomatik": oyuncu sayısına göre sabit sayıdır (az oyuncuda 0 olabilir). Oyuncu yetmezse öncelik sırası: ${ROLE_PRIORITY.map((r) => ROLES[r].name).join(', ')}.`),
+      h('small', {}, `Katil ve Dedektif zorunludur: her turda mutlaka vardır (otomatik ayarda bile). Katil hep 1 kişidir. Kutu kapalıysa o rol oyunda yoktur. "Max N": rol her turda en az 1, en çok N kişiye rastgele verilir. "Otomatik": oyuncu sayısına göre sabit sayıdır (az oyuncuda 0 olabilir). "Sevgililer": masum takımdan iki kişiyi bağlar, biri ölürse diğeri de ölür; "Max N" en çok N çifttir. Oyuncu yetmezse öncelik sırası: ${ROLE_PRIORITY.map((r) => ROLES[r].name).join(', ')}.`),
       h('button', { type: 'button', class: 'btn small ghost', onclick: () => ctx.host.setSettings({ roles: {} }) }, 'Hepsini otomatik yap'));
     box.open = !!this.rolesOpen;
     box.addEventListener('toggle', () => { this.rolesOpen = box.open; });
@@ -562,8 +577,11 @@ export class UI {
   }
 
   copyCode() {
-    const link = `${location.origin}/?oda=${ctx.room.code}`;
-    navigator.clipboard?.writeText(link).then(() => this.toast('Davet bağlantısı kopyalandı.'), () => this.toast(`Oda kodu: ${ctx.room.code}`));
+    // Davet bağlantısı: sayfa#KOD (GitHub gibi sitelerde ?oda=KOD kabul edilmiyor; alt klasörde barındırılan sayfada da doğru adres çıkar)
+    const link = `${location.href.split(/[?#]/)[0]}#${ctx.room.code}`;
+    const fail = () => this.toast(`Kopyalanamadı. Oda kodu: ${ctx.room.code}`);
+    if (!navigator.clipboard?.writeText) return fail(); // http (güvenli olmayan) sayfada pano erişimi yoktur
+    navigator.clipboard.writeText(link).then(() => this.toast('Davet bağlantısı kopyalandı.'), fail);
   }
 
   // ================================================================== oyun içi HUD
@@ -699,7 +717,7 @@ export class UI {
       this.deadBar.textContent = `☠ İzleyicisin${t ? ` · İzlenen: ${t.name}` : ''} · ${keyLabel(KEYS.prevSpectate)}/${keyLabel(KEYS.nextSpectate)} oyuncu değiştir · ölülerle yazılı/sesli konuşabilirsin`;
     }
     this.hud.classList.toggle('is-dead', !me.alive);
-    const needLock = !isTouchDevice() && !ctx.input.locked && !this.modalOpen() && !ctx.playerList.sticky && !ctx.chat.box.classList.contains('typing');
+    const needLock = !ctx.input.locked && !this.modalOpen() && !ctx.playerList.sticky && !ctx.chat.box.classList.contains('typing');
     this.lockHint.classList.toggle('hidden', !needLock);
 
     // ---- sayaçlar ----
@@ -949,6 +967,13 @@ export class UI {
     vol.oninput = () => { S.volume = Number(vol.value); save(); };
     const q = this.select([['low', 'Düşük'], ['medium', 'Orta'], ['high', 'Yüksek'], ['ultra', 'Ultra'], ['ultrahigh', 'Ultra Yüksek']], S.quality);
     q.onchange = () => { S.quality = q.value; ctx.sceneMgr.setQuality(q.value); save(); this.toast('Ev materyali ve fener gölgeleri sayfa yenilenince tam uygulanır.'); };
+    const lights = this.check('Işık efektleri (kapatınca FPS artar; ortam düz aydınlatılır)', S.lights !== false);
+    lights.input.onchange = () => {
+      S.lights = lights.input.checked;
+      ctx.world?.setLightsEnabled(S.lights);
+      save();
+      this.toast(S.lights ? 'Işık efektleri açık.' : 'Işık efektleri kapalı: ortam düz aydınlatılır; oda ışıkları kapanınca yine karanlık olur, fener çalışır.', 3500);
+    };
     const dead = this.check('Ölü sohbet mesajlarını göster', S.showDeadChat !== false);
     dead.input.onchange = () => { S.showDeadChat = dead.input.checked; save(); };
     const guard = this.check('Ctrl+W sekmeyi kapatmasın (oyunda tam ekran kullanır)', S.guardTab !== false);
@@ -959,6 +984,7 @@ export class UI {
       this.field('Görüş alanı (FOV)', h('div', { class: 'range-row' }, fov, fovText)),
       this.field('Ses seviyesi', vol),
       this.field('Grafik kalitesi', q),
+      lights.el,
       dead.el,
       guard.el,
     ];

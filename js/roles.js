@@ -144,15 +144,43 @@ export function buildRoleList(n, cfg = {}) {
   return shuffle(list);
 }
 
-/** Dönüş: { roles: {id: roleId}, lovers: [a, b] | null } */
+/** Host bir turda en çok bu kadar sevgili ÇİFTİ seçebilir (lobi seçicisi 1..bu). */
+export const LOVER_MAX_PICK = 3;
+
+/**
+ * SEVGİLİLER (Aşık) — rol ayarları listesinde cfg.lover (host seçer):
+ *   false / 0     → sevgili yok
+ *   sayı N (1…3)  → her turda 1..N çift (rastgele)
+ *   eksik / 'auto'→ otomatik: oyuncu sayısı GAME_CONFIG.lovers.autoMinPlayers ve üstüyse 1 çift
+ * Dönüş: [en az, en çok] çift (masum takımda yeterli oyuncu yoksa daha az çıkabilir).
+ */
+export function loverLimits(n, cfg = {}) {
+  const v = cfg?.lover;
+  if (v === false || v === 0 || v === '0') return [0, 0];
+  const num = typeof v === 'string' ? Number(v) : v;
+  if (typeof num === 'number' && Number.isFinite(num) && num >= 1) return [1, Math.min(LOVER_MAX_PICK, Math.floor(num))];
+  const auto = GAME_CONFIG.lovers.enabled && n >= GAME_CONFIG.lovers.autoMinPlayers ? 1 : 0;
+  return [auto, auto];
+}
+
+/** Sevgili listesi düz dizidir: [a1, b1, a2, b2, ...] — id'nin eşi (yoksa null). */
+export function loverPartner(lovers, id) {
+  const i = lovers ? lovers.indexOf(id) : -1;
+  return i < 0 ? null : lovers[i ^ 1] ?? null;
+}
+
+/** Dönüş: { roles: {id: roleId}, lovers: [a1, b1, a2, b2...] | null } */
 export function assignRoles(ids, settings = {}) {
   const list = buildRoleList(ids.length, settings.roles || {});
   const roles = {};
   ids.forEach((id, i) => (roles[id] = list[i]));
   let lovers = null;
-  if (GAME_CONFIG.lovers.enabled && settings.lovers !== false && ids.length >= 5) {
-    const pool = ids.filter((id) => teamOf(roles[id]) === 'innocent');
-    if (pool.length >= 2) lovers = shuffle(pool).slice(0, 2);
+  const [lo, hi] = loverLimits(ids.length, settings.roles || {});
+  if (hi > 0) {
+    const pool = shuffle(ids.filter((id) => teamOf(roles[id]) === 'innocent'));
+    const want = lo + Math.floor(Math.random() * (hi - lo + 1));
+    const pairs = Math.min(want, Math.floor(pool.length / 2));
+    if (pairs > 0) lovers = pool.slice(0, pairs * 2);
   }
   return { roles, lovers };
 }
@@ -209,7 +237,7 @@ export function computeVisibility(viewerId, st) {
   for (const [id, p] of Object.entries(st.players)) if (id !== viewerId && !p.spectator && p.role === 'detective') (out[id] ||= {}).role = 'detective';
   if (me.role === 'killer' && st.baiterId && st.players[st.baiterId]) (out[st.baiterId] ||= {}).baiter = true;
   if (isLover(viewerId)) {
-    const partner = st.lovers.find((x) => x !== viewerId);
+    const partner = loverPartner(st.lovers, viewerId);
     if (partner) (out[partner] ||= {}).lover = true;
   }
   return out;

@@ -5,6 +5,7 @@
 //   • İkisi de aynı anda kalmazsa (örn. bombacı herkesi öldürürse) berabere.
 import { GAME_CONFIG } from './config.js';
 import { ctx } from './context.js';
+import { FACES } from './faces.js';
 import { ROLES, assignRoles, makeIdentities, teamOf } from './roles.js';
 import { round3, shuffle } from './util.js';
 
@@ -73,6 +74,11 @@ export class RoundManager {
     }
     S.mode = ctx.room?.mode || 'voice';
     S.idn = makeIdentities(ids, roles, S.mode);
+    // YÜZLER: her tur herkese rastgele (mümkünse farklı) bir yüz; dosya adı kimlikle (f) yayınlanır → herkes aynı yüzü görür
+    const faceNames = FACES.pick(ids.length);
+    ids.forEach((id, i) => {
+      if (faceNames[i]) S.idn[id].f = faceNames[i];
+    });
     S.players = {};
     for (const id of ids) {
       S.players[id] = newPlayerState(roles[id]);

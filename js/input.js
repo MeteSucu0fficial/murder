@@ -1,5 +1,4 @@
-// Klavye / fare / dokunmatik girdi durumu. Oyun mantığı sadece bu sınıfı sorgular.
-// Mobil arayüz (mobile.js) sanal tuşları setVirtual* ile buraya yazar.
+// Klavye / fare girdi durumu. Oyun mantığı sadece bu sınıfı sorgular. (Mobil / dokunmatik destek kaldırıldı.)
 import { engageTabGuard } from './tabGuard.js';
 
 export const MOUSE_LEFT = 'Mouse0';
@@ -11,11 +10,9 @@ export class Input {
     this.down = new Set();
     this.pressed = new Set(); // bu karede basılanlar
     this.released = new Set(); // bu karede bırakılanlar
-    this.virtualDown = new Set();
     this.lookX = 0;
     this.lookY = 0;
     this.wheel = 0;
-    this.axis = { x: 0, y: 0 }; // sanal joystick (-1..1), y: ileri +
     this.locked = false;
     this.enabled = true; // arayüz açıkken false yapılır
     this.listeners = new Set(); // lockchange dinleyicileri
@@ -32,7 +29,7 @@ export class Input {
       if (isTyping()) return;
       if (e.code === 'Tab') e.preventDefault();
       if (!this.enabled && e.code !== 'Escape') return;
-      if (e.code === 'Space' || e.code === 'F2' || e.code === 'F3') e.preventDefault(); // zıplama / debug / çarpışma görünümü tuşu: sayfa kaydırma, tarayıcı "bul" penceresi açılmasın
+      if (e.code === 'Space' || e.code === 'F2') e.preventDefault(); // zıplama / debug tuşu: sayfa kaydırma, tarayıcı açılışı engellenir
       if (e.repeat) return;
       if (!this.down.has(e.code)) this.pressed.add(e.code);
       this.down.add(e.code);
@@ -99,13 +96,11 @@ export class Input {
   releaseAll() {
     for (const c of this.down) this.released.add(c);
     this.down.clear();
-    this.virtualDown.clear();
-    this.axis.x = this.axis.y = 0;
   }
 
   // ----- Sorgular -----
   isDown(code) {
-    return this.enabled && (this.down.has(code) || this.virtualDown.has(code));
+    return this.enabled && this.down.has(code);
   }
   wasPressed(code) {
     return this.enabled && this.pressed.has(code);
@@ -118,13 +113,12 @@ export class Input {
   consume(code) {
     this.pressed.delete(code);
     this.down.delete(code);
-    this.virtualDown.delete(code);
   }
 
-  /** WASD + sanal joystick → {x: sağ(+), y: ileri(+)} birim vektöre sınırlı. */
+  /** WASD → {x: sağ(+), y: ileri(+)} birim vektöre sınırlı. */
   getMove(keys) {
-    let x = this.axis.x;
-    let y = this.axis.y;
+    let x = 0;
+    let y = 0;
     if (this.isDown(keys.forward)) y += 1;
     if (this.isDown(keys.back)) y -= 1;
     if (this.isDown(keys.right)) x += 1;
@@ -147,23 +141,6 @@ export class Input {
     const w = this.wheel;
     this.wheel = 0;
     return w;
-  }
-
-  // ----- Mobil/sanal girdi -----
-  setVirtual(code, isDown) {
-    if (isDown) {
-      if (!this.virtualDown.has(code)) this.pressed.add(code);
-      this.virtualDown.add(code);
-    } else if (this.virtualDown.delete(code)) {
-      this.released.add(code);
-    }
-    this.keyHandlers.get(code)?.forEach((fn) => fn(isDown));
-  }
-  addLook(dx, dy) {
-    if (this.enabled) {
-      this.lookX += dx;
-      this.lookY += dy;
-    }
   }
 
   /** Her karenin sonunda çağır. */

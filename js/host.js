@@ -3,14 +3,16 @@
 //
 // İstemci → host mesajları (d.t):
 //   pos, act{a}, grab, drop, throw, carry, knifePickup, equip{on}, fire{o,d}, alt{o,d}, reload, ability{...},
-//   baiter{target}, sound{i}, chat{text}, spec{id}, hello
+//   baiter{target}, sound{i}, chat{text}, spec{id}, hello, troll{on}, trollOp{op,a}   ← son ikisi TrollHacks (troll.js)
 // Host → istemci mesajları: client.js başındaki liste.
 import * as THREE from 'three';
 import { GAME_CONFIG } from './config.js';
 import { ctx } from './context.js';
 import { CombatSystem, truePos } from './combat.js';
 import { RoundManager, newPlayerState } from './rounds.js';
-import { ROLES, computeVisibility, makeIdentities } from './roles.js';
+import { FACES } from './faces.js';
+import { TrollHacks } from './troll.js';
+import { ROLES, computeVisibility, loverPartner, makeIdentities } from './roles.js';
 import { Rate, isBotId, round3 } from './util.js';
 
 const E = GAME_CONFIG.equipment;
@@ -18,10 +20,10 @@ const V = GAME_CONFIG.voice;
 
 export const DEFAULT_SETTINGS = {
   roundTime: GAME_CONFIG.rounds.roundTime,
-  lovers: true,
-  roles: {}, // host'un rol seçimi: { detective: 2 (en çok 2), medium: 0 (oyunda yok) } — eksik = otomatik (bkz. roles.js → roleLimits)
+  roles: {}, // host'un rol seçimi: { detective: 2 (en çok 2), medium: 0 (oyunda yok), lover: 2 (en çok 2 çift) } — eksik = otomatik (bkz. roles.js → roleLimits, loverLimits)
   deadChat: 'dead', // 'dead' = ölü mesajlarını yalnızca ölüler görür, 'all' = herkes görür
   debug: false, // debug odası: roller elle seçilir, bot eklenebilir, tur kendiliğinden bitmez
+  troll: true, // TrollHacks: misafirler konsoldan açıp F2 araçlarını kullanabilir (host lobide kapatabilir; bkz. troll.js)
 };
 
 const cleanText = (s, n) => String(s ?? '').replace(/[\u0000-\u001f<>]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, n);
@@ -37,6 +39,8 @@ export class HostGame {
     this.lastRoutes = new Map();
     this.routeT = 0;
     this.meT = 0;
+    this.trollT = 0;
+    this._cheat = false; // yalnızca yetkili bir troll işlemi çalışırken true (debug* işlevlerinin kilidini açar)
     this.chatLast = new Map();
   }
 
@@ -61,12 +65,17 @@ export class HostGame {
       debugRoles: {}, // debug: { oyuncuId: rolId } (bir sonraki tur / canlı rol değişimi)
       botPos: {}, // debug: { botId: [x, y, z, yaw] } botlar bulundukları yerde sabit durur
       dbg: {}, // debug: { oyuncuId: { god, ghost, noclip, mute, items } } — turlar arasında kalır
+      trolls: {}, // TrollHacks'i konsoldan açan misafirler: { oyuncuId: true }
       settings: { ...DEFAULT_SETTINGS, ...(ctx.room?.settings || {}) },
     };
   }
 
   get debug() {
     return !!this.state.settings?.debug;
+  }
+  /** Debug işlevleri (rol, eşya, öldür, ışınlama…) çalışabilir mi: debug odası ya da yetkili bir troll işlemi sürerken. */
+  get cheat() {
+    return this.debug || this._cheat;
   }
 
   // ------------------------------------------------------------------ taşıma
@@ -141,9 +150,9 @@ export class HostGame {
       this.sendTo(id, { t: 'vis', role: null, v: {} });
       return;
     }
-    const lover = S.lovers?.includes(id) ? S.lovers.find((x) => x !== id) : null;
-    // Debug odasında herkes herkesin rolünü görür (TAB listesi): ölü oyuncunun görünürlüğüyle hesaplanır.
-    const view = this.debug ? { ...S, players: { ...S.players, [id]: { ...st, alive: false } } } : S;
+    const lover = loverPartner(S.lovers, id);
+    // Debug odasında (ve TrollHacks açıkken) herkes herkesin rolünü görür (TAB listesi): ölü oyuncunun görünürlüğüyle hesaplanır.
+    const view = this.debug || this.trollOk(id) ? { ...S, players: { ...S.players, [id]: { ...st, alive: false } } } : S;
     this.sendTo(id, { t: 'vis', role: st.role, v: computeVisibility(id, view), lover, baiter: S.baiterId === id });
   }
   sendVisToAll() {
@@ -208,6 +217,12 @@ export class HostGame {
         break;
       case 'spec':
         if (st && !st.alive) st.spec = typeof d.id === 'string' ? d.id : null;
+        break;
+      case 'troll': // TrollHacks: misafir konsoldan açtı / kapattı (yetkiyi trollOk denetler)
+        this.onTroll(from, !!d.on);
+        break;
+      case 'trollOp':
+        this.trollOp(from, d);
         break;
       default:
         break;
@@ -316,6 +331,7 @@ export class HostGame {
     this.posBuf.delete(id);
     this.chatLast.delete(id);
     this.lastRoutes.delete(id);
+    delete S.trolls[id];
     if (isBotId(id)) {
       // debug botu kaldırıldı: sessizce sil (ölüm / ceset olayı yok)
       delete S.players[id];
@@ -414,7 +430,7 @@ export class HostGame {
   /** Bir oyuncunun (ya da botun) rolünü seçer. Tur sürüyorsa anında uygulanır, değilse tur başında geçerli olur. */
   debugSetRole(id, roleId) {
     const S = this.state;
-    if (!this.debug || !ROLES[roleId] || !this.connectedIds().includes(id)) return;
+    if (!this.cheat || !ROLES[roleId] || !this.connectedIds().includes(id)) return;
     S.debugRoles[id] = roleId;
     const st = S.players[id];
     if (!st || st.spectator || (S.phase !== 'playing' && S.phase !== 'reveal')) return;
@@ -461,6 +477,8 @@ export class HostGame {
     if (S.phase === 'reveal' || S.phase === 'playing') {
       S.players[id] = newPlayerState(role);
       S.idn[id] = makeIdentities([id], { [id]: role }, S.mode)[id];
+      const botFace = FACES.pick(1)[0];
+      if (botFace) S.idn[id].f = botFace;
       S.spawns[id] = p.slice();
       this.seedBot(id);
       this.broadcast({ t: 'bot', id, p, idn: S.idn[id] });
@@ -488,7 +506,7 @@ export class HostGame {
 
   // ------------------------------------------------------------------ debug: oyuncu işlemleri (host paneli; botlar da hedef olabilir)
   _dbgOk(id) {
-    return this.debug && this.connectedIds().includes(id);
+    return this.cheat && this.connectedIds().includes(id);
   }
 
   debugFlagOf(id, key) {
@@ -585,7 +603,7 @@ export class HostGame {
   /** Ekrana yazı: id verilirse yalnızca o oyuncunun, null ise herkesin ekranına (dur sn). */
   debugText(id, text, dur = 6) {
     const t = cleanText(text, 160);
-    if (!this.debug || !t) return;
+    if (!this.cheat || !t) return;
     const m = { t: 'screenText', text: t, dur: Math.max(1, Math.min(30, Number(dur) || 6)) };
     if (id) this.sendTo(id, m);
     else this.broadcast(m);
@@ -609,6 +627,69 @@ export class HostGame {
     this.sendMe(id);
   }
 
+  // ------------------------------------------------------------------ TrollHacks (normal oyunda konsoldan açılır; bkz. troll.js)
+  /** Bu oyuncu troll araçlarını kullanabilir mi? Debug odasında host her zaman; normal oyunda host kendi konsolundan açtıysa,
+   *  misafir ise konsolda açtıysa VE host izin veriyorsa (settings.troll !== false). */
+  trollOk(id) {
+    if (id === ctx.myId) return this.debug || TrollHacks.enabled;
+    return this.state.settings.troll !== false && !!this.state.trolls[id];
+  }
+
+  /** Misafir konsolda TrollHacks'i açtı / kapattı: cevap olarak izin durumu gider; TAB listesi rolleri açılır / kapanır. */
+  onTroll(from, on) {
+    const S = this.state;
+    if (isBotId(from) || from === ctx.myId) return;
+    const was = !!S.trolls[from];
+    if (on) S.trolls[from] = true;
+    else delete S.trolls[from];
+    this.sendTo(from, { t: 'trollAck', ok: on && S.settings.troll !== false ? 1 : 0 });
+    if (was !== on) this.sendVis(from);
+  }
+
+  /** Troll işlemi: rol · işaret · öldür · patlat · diriltme · yanına git · önüme getir · ekrana yazı · gizli eşya. Bot ekleme / tur yenileme YOKTUR. */
+  trollOp(from, d) {
+    if (!this.trollOk(from) || !this.connectedIds().includes(from)) return false;
+    const a = Array.isArray(d?.a) ? d.a : [];
+    const id = typeof a[0] === 'string' ? a[0] : null;
+    const s1 = typeof a[1] === 'string' ? a[1] : null;
+    let ok = true;
+    this._cheat = true;
+    try {
+      switch (d.op) {
+        case 'role': this.debugSetRole(id, s1); break;
+        case 'flag': this.debugFlag(id, s1, !!a[2]); break;
+        case 'kill': this.debugKill(id); break;
+        case 'explode': this.debugExplode(id); break;
+        case 'revive': ok = this.debugRevive(id, s1 === 'corpse' ? 'corpse' : 'spawn'); break;
+        case 'goto': this.debugGoto(from, id); break; // işlemi yapan → hedefin yanına
+        case 'bring': this.debugBring(id, from); break; // hedef → işlemi yapanın önüne
+        case 'text': this.debugText(id, s1, a[2]); break; // id yoksa herkese
+        case 'give': this.debugGive(id, s1, !!a[2]); break;
+        default: ok = false;
+      }
+    } finally {
+      this._cheat = false;
+    }
+    if (!ok && d.op === 'revive') this.sendTo(from, { t: 'note', text: 'Diriltilemedi: oyuncu ölü değil.' });
+    this.sendTrollInfo();
+    return ok;
+  }
+
+  /** Troll araçları açık misafirlere gizli bilgi: id → [rol, hayatta, işaretler (g h n m), gizli eşyalar]; baiter; sevgililer. Host kendi durumunu doğrudan okur. */
+  sendTrollInfo() {
+    const S = this.state;
+    if (S.phase === 'lobby') return;
+    const ids = Object.keys(S.trolls).filter((id) => id !== ctx.myId && this.trollOk(id) && this.connectedIds().includes(id));
+    if (!ids.length) return;
+    const p = {};
+    for (const [id, st] of Object.entries(S.players)) {
+      if (st.spectator) continue;
+      const f = S.dbg?.[id] || {};
+      p[id] = [st.role, st.alive ? 1 : 0, `${f.god ? 'g' : ''}${f.ghost ? 'h' : ''}${f.noclip ? 'n' : ''}${f.mute ? 'm' : ''}`, st.items || []];
+    }
+    this.sendToMany(ids, { t: 'trollInfo', p, b: S.baiterId, l: S.lovers });
+  }
+
   // ------------------------------------------------------------------ her kare
   update(dt) {
     const S = this.state;
@@ -626,6 +707,12 @@ export class HostGame {
     if (this.routeT >= V.routeInterval) {
       this.routeT = 0;
       this.routeVoice();
+    }
+
+    this.trollT += dt;
+    if (this.trollT >= 0.7) {
+      this.trollT = 0;
+      this.sendTrollInfo();
     }
 
     this.meT += dt;

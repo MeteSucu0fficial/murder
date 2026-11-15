@@ -135,6 +135,12 @@ export class World {
     return this.collision.setDebugView(this.sceneMgr.scene, on);
   }
 
+  /** Ayarlar → Işık efektleri: kapalıyken gerçek ışık (oda lambaları, fener, yakın görüş) çizilmez, ortam düz aydınlatılır (scene.js / lights.js). */
+  setLightsEnabled(on) {
+    this.sceneMgr.setLightsEnabled(on);
+    this.lights?.setEnabled(on);
+  }
+
   _buildRooms() {
     this.rooms = (this.kinds.room || []).map((e) => {
       const n = parseInt((e.name.match(/(\d+)/) || [])[1], 10);

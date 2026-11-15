@@ -5,6 +5,8 @@ import { clamp, damp, lerp } from './util.js';
 
 const COLOR_DAY = new THREE.Color(0x1d2330);
 const COLOR_NIGHT = new THREE.Color(0x020306);
+const HEMI_SKY = 0xd8e0ff; // normal modda ortam ışığı renkleri (düz modda config.js → lights.flat)
+const HEMI_GROUND = 0x2a2622;
 
 export class SceneManager {
   constructor(canvas, quality = 'high') {
@@ -31,7 +33,14 @@ export class SceneManager {
     this.camera = new THREE.PerspectiveCamera(GAME_CONFIG.camera.fov, 1, 0.05, 140);
     this.scene.add(this.camera);
 
-    this.hemi = new THREE.HemisphereLight(0xd8e0ff, 0x2a2622, GAME_CONFIG.lights.ambientOn);
+    // YAKIN GÖRÜŞ: oda ışıkları kapalıyken yakın çevreyi çok az aydınlatan sönük ışık (kameraya bağlı). Işık sayısı sabit kalsın diye
+    // hep sahnededir; aydınlıkta şiddeti 0'dır. "Işık efektleri kapalı" modunda hiç çizilmez.
+    const NV = GAME_CONFIG.lights.nearVision;
+    this.nearLight = new THREE.PointLight(NV.color, 0, NV.distance, NV.decay);
+    this.camera.add(this.nearLight);
+    this.lightsOn = true; // false: gerçek ışık yok, ortam düz aydınlatılır (Ayarlar → Işık efektleri)
+
+    this.hemi = new THREE.HemisphereLight(HEMI_SKY, HEMI_GROUND, GAME_CONFIG.lights.ambientOn);
     this.scene.add(this.hemi);
 
     this.worldGroup = new THREE.Group();
@@ -68,12 +77,16 @@ export class SceneManager {
   }
 
   /** Havuzdan boş bir fener ışığı al (yoksa null). priority: yüksek = yerel oyuncu. */
-  acquireSpot() {
+  acquireSpot(remote = false) {
     const s = this.spots.find((x) => !x.inUse);
     if (!s) return null;
     s.inUse = true;
     s.light.distance = GAME_CONFIG.flashlight.range;
-    if (s.light.castShadow) s.light.shadow.autoUpdate = true; // gölge haritası her karede yenilenir
+    if (s.light.castShadow) {
+      // yerel fener: gölge haritası her karede yenilenir · uzak oyuncuların fenerleri: kareler arasında bir atlayarak (inventory.js) → yarı maliyet
+      s.light.shadow.autoUpdate = !remote;
+      s.light.shadow.needsUpdate = true;
+    }
     return s;
   }
   releaseSpot(s) {
@@ -102,12 +115,32 @@ export class SceneManager {
     this.camera.updateProjectionMatrix();
   }
 
+  /**
+   * Ayarlar → Işık efektleri. Kapalıyken oda ışıkları (lights.js) ve yakın görüş ışığı çizilmez; ortam "düz" aydınlatılır (ışık efekti yok):
+   * oda ışıkları yanıkken parlak, kapanınca KARANLIK (ortam azalır, sis yoğunlaşır → yakın çevre sis mesafesi kadar görünür).
+   * Fener ışıkları (spots) açık kalır: karanlıkta görmek için gerekli. Işık sayısı değiştiği için kısa bir takılma olabilir.
+   */
+  setLightsEnabled(on) {
+    const L = GAME_CONFIG.lights;
+    this.lightsOn = !!on;
+    this.nearLight.visible = this.lightsOn;
+    this.hemi.color.setHex(this.lightsOn ? HEMI_SKY : L.flat.sky);
+    this.hemi.groundColor.setHex(this.lightsOn ? HEMI_GROUND : L.flat.ground);
+  }
+
   update(dt) {
     const L = GAME_CONFIG.lights;
     this._dark = damp(this._dark, this.darkness, L.transitionSpeed, dt);
-    this.hemi.intensity = lerp(L.ambientOn, L.ambientOff, this._dark);
-    this.scene.fog.density = lerp(L.fogOn, L.fogOff, this._dark);
-    this.scene.fog.color.copy(COLOR_DAY).lerp(COLOR_NIGHT, this._dark);
+    if (this.lightsOn) {
+      this.hemi.intensity = lerp(L.ambientOn, L.ambientOff, this._dark);
+      this.scene.fog.density = lerp(L.fogOn, L.fogOff, this._dark);
+      this.scene.fog.color.copy(COLOR_DAY).lerp(COLOR_NIGHT, this._dark);
+      this.nearLight.intensity = L.nearVision.intensity * this._dark; // yalnızca karanlıkta
+    } else {
+      this.hemi.intensity = lerp(L.flat.intensity, L.flat.darkIntensity, this._dark);
+      this.scene.fog.density = lerp(L.fogOn, L.flat.fogDark, this._dark);
+      this.scene.fog.color.copy(COLOR_DAY).lerp(COLOR_NIGHT, this._dark);
+    }
     this.scene.background.copy(this.scene.fog.color);
   }
 

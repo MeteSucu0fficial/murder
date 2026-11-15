@@ -30,9 +30,7 @@ export const KEY_ACTIONS = [
   { id: 'list', label: 'Oyuncu listesi (basılı tut)', group: 'Arayüz' },
   { id: 'prevSpectate', label: 'İzleyici: önceki oyuncu', group: 'Arayüz' },
   { id: 'nextSpectate', label: 'İzleyici: sonraki oyuncu', group: 'Arayüz' },
-  { id: 'debug', label: 'Debug paneli (yalnızca debug odası)', group: 'Arayüz' },
-  { id: 'collisionView', label: 'Çarpışma nesnelerini göster / gizle', group: 'Arayüz' },
-];
+  { id: 'debug', label: 'Debug paneli (yalnızca debug odası)', group: 'Arayüz' },];
 
 const FIXED = new Set(['Escape']); // atanamaz
 

@@ -11,7 +11,9 @@ Evi Blender'da modelleyip `assets/house.glb` olarak koyarsın; oyun nesneleri **
 **Son sürümde eklenenler:** ölüm tamamen sessiz · **patlama efekti** (bombacı) · üstte hayatta kalan sayısı yok · debug'ta **harita raporu** (konsol) · tutulan eşya duvarın içine girmez · **fener ışığı duvardan geçmez** · kapı **her zaman katı** ve çarptığı oyuncunun arkasında geri kapanır · **idam şalteri** (açıkken alandakilere sürekli hasar) · host'ta **rol seçimi (hangi roller + en çok kaç tane)** · **fizikli ceset (ragdoll)** + bir uzuvdan taşıma · oyuncular birbirinin içinden geçemez (turun ilk 10 sn'si hariç) · `Door_.001` / `Door.001` gibi Blender adları.
 **v4'te eklenenler:** **zorunlu roller** (Katil + Dedektif her turda vardır) · yeni kötü rol **S2G** (gece fermuarla öldürür, ceset zıplar) · sessiz modda **yalnızca dedektif konuşur** (normal ↔ bağırma, mikrofon aç/kapa) · **kayma yok**, merdiven/rampadan otomatik çıkış · **eğilme (Ctrl)** · **Ctrl+W** ile sekme kapanmasına karşı koruma · oyuncular artık cesetle aynı **insan modeli** (kol, bacak, yürüme/eğilme animasyonu) · baktığın kişinin/cesedin **adı** nişangâhın altında (kendi renginde) · sol altta adın, sağ altta rolün · tur başında **5 sn siyah rol ekranı** (rol, bildiğin kişiler, rol açıklaması) · **Baiter / Aşık** ikincil rol olarak rolünün yanında · Uyurgezer uyurken siyah ekran · Q menüsünde çalan ses bitmeden aynı ses tekrar basılamaz · tutulan eşya nişangâhın hizasında durur.
 **Son eklenenler:** **merdiven** (`Ladder_*`: değip **W / Boşluk** basılı tut, tırman) · **serbest dönen tablolar** (`MidPaint_*`: pivotları etrafında, nereden ve ne kadar sert değdiğine göre döner; atılan/düşen eşyalar da döndürür) · **tüm tablolar katıdır** (içinden geçilmez) · **TAB listesinde kimsenin rolü görünmez**.
-**v4.2'de eklenenler:** tablolar yalnızca **kendi Y ekseninde** döner · **menziller kısaldı** (S2G aynı) · taramalı kısaldı, **tabanca + taramalı iki elle**, **elektrikli sopa**, düzeltilmiş bıçak tutuşu · **TAB'da sol tıkla Baiter ver** · karakterde **yalnızca üst renkli**, bacaklar gri, kafa açık ten / kahverengi · **cesetler kendi içinden geçmez** · yeni tutuş / saldırı **animasyonları** · **büyütülmüş örnek ev** + gizli tüneller (tabloların arkası) · **Bombacı anında patlar** · **C basılı tut: ses seviyesi dairesi** · debug: **noclip, görünmezlik, ölümsüzlük, öldür, diriltme (doğma noktası / ceset), ekrana yazı (herkese / tek kişiye), susturma, patlat, yanına git, önüme getir, gizli eşyalar (roketatar, bomba, plazma)** · **`Collision_*` nesneleri görünür** (F3, yarı saydam turuncu).
+**v4.2'de eklenenler:** tablolar yalnızca **kendi Y ekseninde** döner · **menziller kısaldı** (S2G aynı) · taramalı kısaldı, **tabanca + taramalı iki elle**, **elektrikli sopa**, düzeltilmiş bıçak tutuşu · **TAB'da sol tıkla Baiter ver** · karakterde **yalnızca üst renkli**, bacaklar gri, kafa açık ten / kahverengi · **cesetler kendi içinden geçmez** · yeni tutuş / saldırı **animasyonları** · **büyütülmüş örnek ev** + gizli tüneller (tabloların arkası) · **Bombacı anında patlar** · **C basılı tut: ses seviyesi dairesi** · debug: **noclip, görünmezlik, ölümsüzlük, öldür, diriltme (doğma noktası / ceset), ekrana yazı (herkese / tek kişiye), susturma, patlat, yanına git, önüme getir, gizli eşyalar (roketatar, bomba, plazma)** · **`Collision_*` nesneleri görünür** (yarı saydam turuncu; v4.3'te F3 kaldırıldı: yalnızca debug panelinde).
+**v4.3'te eklenenler:** **mobil destek kaldırıldı** (şimdilik yalnızca klavye + fare) · karakterlere **yüz** (`assets/faces`: PNG / SVG, tur başında rastgele; PNG'nin arka planı şeffafsa kafanın ten rengi görünür; saç / göz / kaş modeli kaldırıldı) · **sevgililer** artık lobideki **Rol ayarları**ndan (Kapalı / Otomatik / 1–3 çift) · **TrollHacks:** normal oyunda konsola `TrollHacks.enabled = true;` yaz → **F2** paneli (bot ekleme hariç her şey) · panelde ve debug'ta oyuncuların **oyun içi adı (NATO) + rengi** · **X-ray** (duvar arkasındaki oyuncular + roller; debug ve TrollHacks) · **F3 kaldırıldı**, çarpışma görünümü yalnızca panelde · **ışık havuzu** (sana en yakın ışıklar gerçek ışık, daha az GPU yükü) · Ayarlar'da **Işık efektleri** aç / kapa (kapalıyken ortam düz aydınlatılır) · ışıklar kapalıyken **yakın görüş** · uzak oyuncuların fener gölgeleri yarı maliyetle.
+**v4.3.1'de düzeltilenler:** lobiyi ve rol ayarlarını çökerten hata (`Sevgililer` satırı yanlış tabloya bakıyordu) giderildi → oda açılınca hata yok, host yine **hangi rolden kaç tane** olacağını seçebilir · davet bağlantısı artık **`sayfa#KOD`** (GitHub'da `?oda=KOD` kabul edilmiyordu; eski `?oda=` bağlantıları da çalışır) · **Işık efektleri kapalıyken** de oda ışıkları kapanınca **karanlık** olur (fener çalışır) · karanlıkta **yakın görüş mesafesi yarıya** indi (8 → 4 m) · başka oyuncuların başında **fener konisi yok**, yalnızca ışık.
 
 ---
 
@@ -22,7 +24,7 @@ Bu sürüm **statik web sitesi** olarak çalışır; `npm install`, `npm start`,
 - Geliştirme için proje klasörünü VS Code **Live Server** ile açabilirsin. `file://` üzerinden doğrudan açma; ES modülleri ve CDN importmap'i HTTP/HTTPS ister.
 - Tek kişilik **Debug haritası** internet istemez (ağ kurmaz), ama sayfa yine de bir HTTP(S) adresinden açılmalıdır (Live Server yeterli).
 - Odayı kuran kişi **host** olur. Host'un tarayıcısı oyun mantığını çalıştırır; oyuncular PeerJS DataConnection üzerinden doğrudan host'a bağlanır.
-- Host oda açınca lobide görünen 5 karakterli kodu arkadaşlarına verir. Katılanlar yalnızca bu kodu girer; herkese açık oda listesi yoktur.
+- Host oda açınca lobide görünen 5 karakterli kodu arkadaşlarına verir. Katılanlar yalnızca bu kodu girer; herkese açık oda listesi yoktur. Lobideki büyük koda tıklayınca **`sayfa#KOD`** biçiminde bir davet bağlantısı kopyalanır (örn. `https://kullanici.github.io/irgat/#K7X2M`); bağlantı açılınca kod "Odaya katıl" kutusuna kendiliğinden yazılır. (`?oda=KOD` yerine `#KOD` kullanılır: GitHub gibi siteler `?` ile gelen parametreyi kabul etmeyebilir.)
 - **Host oyundan/sekmeden çıkarsa oda kapanır.** Sunucusuz mimaride host devri ve otomatik oda kurtarma yoktur.
 
 ### İnternetten arkadaşlarla oynamak (sesli)
@@ -63,12 +65,11 @@ Tüm tuşlar **Ayarlar → Tuşlar** bölümünden değiştirilebilir (bir eylem
 | **X** | Özel yetenek · **S2G**: gece bir kişiye bakıp (1 m) **basılı tut** |
 | **F** | Fener aç/kapat |
 | **Q** (basılı) | Dairesel ses menüsü: fareyi bir seçeneğe çek, Q'yu bırak · çalan ses bitene kadar o seçenek **kilitlidir** (gri), tekrar basılamaz |
-| **TAB** (basılı) | Oyuncu listesi: ad, konuşma ışığı, durum (**kimsenin rolü görünmez**) · katil bir satıra **sol tıklayınca** "Baiter ver" menüsü açılır (mobilde dokununca) |
+| **TAB** (basılı) | Oyuncu listesi: ad, konuşma ışığı, durum (**kimsenin rolü görünmez**) · katil bir satıra **sol tıklayınca** "Baiter ver" menüsü açılır |
 | **V** | Bas-konuş · **M** mikrofon aç/kapa · **sessiz modda** yalnızca **dedektif** konuşur: V gerekmez, mikrofon açıkken konuşur |
-| **C** (basılı) | **Ses seviyesi dairesi:** C'ye basılı tut → 3 seçenekli daire açılır (solda **Fısıltı** 3 m · üstte **Normal** 8 m · sağda **Bağırma** 18 m); fareyi bir seçeneğe çek, C'yi bırak → seviye seçilir (tuşa basıp bırakmak artık seviye değiştirmez). Sessiz modda dedektifin yalnızca **Normal / Bağırma** seçeneği vardır. Mobilde **Ses** düğmesine dokun → daire açılır → bir seçeneğe dokun |
+| **C** (basılı) | **Ses seviyesi dairesi:** C'ye basılı tut → 3 seçenekli daire açılır (solda **Fısıltı** 3 m · üstte **Normal** 8 m · sağda **Bağırma** 18 m); fareyi bir seçeneğe çek, C'yi bırak → seviye seçilir (tuşa basıp bırakmak artık seviye değiştirmez). Sessiz modda dedektifin yalnızca **Normal / Bağırma** seçeneği vardır. |
 | **Enter** | Sohbet · **← / →** ölüyken izlenen oyuncuyu değiştir · **Esc** duraklat |
-| **F2** | Debug paneli (yalnızca debug odasının host'unda) |
-| **F3** | **Çarpışma nesnelerini göster / gizle** (`Collision_*`): yarı saydam turuncu dolgu + kenar çizgileri, duvarın içinden de görünür. Seçim kaydedilir, **varsayılan açık** (haritada `Collision_*` varsa). Debug panelindeki "Çarpışmayı göster / gizle" düğmesiyle aynıdır |
+| **F2** | Debug paneli (debug odasının host'unda) · normal oyunda konsola `TrollHacks.enabled = true;` yazınca **TrollHacks paneli** (bölüm 4) |
 
 **Bakışa göre etkileşim:** Etkileşim ve eşya alma mesafeye göre değil **nişangâhın baktığı nesneye** göre çalışır. Ekranın ortasındaki nokta, bir şeye bakınca halkaya dönüşür ve altta ne yapacağın yazar. Duvarın arkasındaki şeyler seçilemez. Azami erişim `config.js → GAME_CONFIG.interaction.reach` (3,2 m).
 
@@ -78,7 +79,7 @@ Tüm tuşlar **Ayarlar → Tuşlar** bölümünden değiştirilebilir (bir eylem
 
 **Kayma yok, merdiven otomatik:** Eğimli zeminde ve kenarlarda **kaymazsın**; hareket anlıktır (buz gibi atalet yok), bıraktığın anda durursun. `player.stepHeight` (0,5 m) kadar yüksek basamaklar, merdivenler ve rampalar **kendiliğinden** çıkılır; inerken zemine yapışırsın (`snapDown`), sekmezsin. Zıplamak gerekmez. Yürünebilir eğim sınırı `player.walkableY` (≈ 56°). Havadayken zıpladığın yöndeki momentum korunur.
 
-**Merdiven (`Ladder_*`):** Blender'da bir nesneye `Ladder_01` de; o nesne **tırmanılan merdiven** olur (kendisi katı değildir, içinden geçilir; tırmanma kutusu nesnenin kendi sınır kutusudur, döndürülmüş de olsa doğru çalışır). Tırmanmak için merdivene **değmen** (kapsülün kutuya `ladder.touchMargin` = 0,22 m yaklaşması), merdivene **dönük** olman ve **W** (ya da **Boşluk**, ya da mobilde ileri çubuğu / ZIPLA) **basılı tutman** gerekir; yanından geçerken kapmaz.
+**Merdiven (`Ladder_*`):** Blender'da bir nesneye `Ladder_01` de; o nesne **tırmanılan merdiven** olur (kendisi katı değildir, içinden geçilir; tırmanma kutusu nesnenin kendi sınır kutusudur, döndürülmüş de olsa doğru çalışır). Tırmanmak için merdivene **değmen** (kapsülün kutuya `ladder.touchMargin` = 0,22 m yaklaşması), merdivene **dönük** olman ve **W** (ya da **Boşluk**) **basılı tutman** gerekir; yanından geçerken kapmaz.
 * Tırmanırken **W / Boşluk** yukarı, **S** aşağı, **A / D** yana (yavaş); hiçbir şeye basmazsan olduğun yerde **asılı kalırsın** (düşmezsin). **Ctrl** (eğil), merdivenden uzaklaşmak ya da yana taşmak seni **bırakır** (düşersin); zemine inince tırmanma biter.
 * **Tepeye** gelince (ayakların tepenin `topMargin` = 0,3 m altına çıkınca) **W / Boşluk** ile merdivene doğru **küçük bir sıçrama** yaparsın → platforma / üst kata çıkarsın. Merdiveni, çıkılacak yüzeyin biraz (≈ 0,25 m) üstünde bitir. Platformun **üstündeyken** (ayakların tepenin 0,3 m altına inmemişse) merdivene tutunmazsın; **inmek için** kenardan atla / düş, merdivene dön ve **W / Boşluk** basılı tutarak havada yakala, sonra **S** ile in.
 * Mesh'i olmayan (Empty) merdiven de olur: kutu = Empty'nin ölçeği (yarı boyut), ya da özel özellik `size: [genişlik, yükseklik, derinlik]`.
@@ -129,15 +130,15 @@ Tam ekranı istemezsen **Ayarlar → Genel → "Ctrl+W sekmeyi kapatmasın"** ku
 * **Hareketli nesneler (kapı, kafes, hareketli duvar, tablo):** Blender'da ölçeği **uygulanmamış** (`S` ile çekilmiş, x/y/z ölçeği farklı) nesnelerde çarpışma payı eskiden neredeyse sıfıra düşüyordu (ince kapı / tablo / duvardan geçilirdi); artık ölçek çarpışma gövdesine işlenir.
 * **Merdiven:** Duvarın öbür yanındaki merdivene tutunulmaz. **Kamera:** yakın düzlem 0,05 m; duvara yaslanıp geniş açıyla yan bakınca duvarın içi görünmez.
 
-Hâlâ bir duvarın içinden geçiyorsan o duvarın **çarpışması yok** demektir: **F3** (ya da debug panelinde **"Çarpışmayı göster"**) oyuncunun gerçekten çarptığı yüzeyleri görünür yapar (**yarı saydam turuncu** dolgu + kenar çizgisi: duvar / zemin / merdiven; **mavi tel kafes**: kapı / tablo / hareketli duvar). Turuncu dolgusu olmayan duvarın Blender'da adını `Collision_...` yap (ya da yanına aynı şekilde bir `Collision_` kutusu koy). Harita raporu da (F2 → *Harita raporu*) "ÇARPIŞMASI OLMAYAN büyük görünür mesh'ler" diye bu duvarları adlarıyla listeler.
+Hâlâ bir duvarın içinden geçiyorsan o duvarın **çarpışması yok** demektir: **F2** panelindeki **"Çarpışma görünümü"** düğmesi (debug odası ya da TrollHacks) oyuncunun gerçekten çarptığı yüzeyleri görünür yapar (**yarı saydam turuncu** dolgu + kenar çizgisi: duvar / zemin / merdiven; **mavi tel kafes**: kapı / tablo / hareketli duvar). Turuncu dolgusu olmayan duvarın Blender'da adını `Collision_...` yap (ya da yanına aynı şekilde bir `Collision_` kutusu koy). Harita raporu da (F2 → *Harita raporu*) "ÇARPIŞMASI OLMAYAN büyük görünür mesh'ler" diye bu duvarları adlarıyla listeler.
 
 **Kapılar:** Kapı açıkken bile içinden geçilmez (açık kapı kanadı da katıdır). Kapı hareket ederken bir oyuncuya çarparsa **geri döner** (açılıyorsa kapanır, kapanıyorsa açılır) → kapıyla kimse sıkışmaz.
 
 **İdam alanı:** `Execution_Lever` bir **şalterdir** (buton değil): bir kez çekersen **AÇIK** kalır, tekrar çekene kadar `DeathZone` içindekilere **sürekli hasar** verir (varsayılan 0,5 sn'de bir 10 hasar). Alan açıkken kırmızı parlar. Ayarlar: `GAME_CONFIG.execution`.
 
-**Fener (F):** Fener ışığı **duvardan geçmez**. Orta/Yüksek kalitede gerçek gölge haritası kullanılır; **Düşük** kalitede gölge yoktur, onun yerine ışığın menzili baktığın duvara göre kısılır. Başka oyuncuların fener konisi de duvara değince kısalır. Kalite ayarı sayfa yenilenince tam uygulanır.
+**Fener (F):** Fener ışığı **duvardan geçmez**. Orta/Yüksek kalitede gerçek gölge haritası kullanılır; **Düşük** kalitede gölge yoktur, onun yerine ışığın menzili baktığın duvara göre kısılır. Fener yalnızca **ışık** olarak görünür: başka oyuncuların başında görünür bir ışık konisi yoktur (v4.3.1). Kalite ayarı sayfa yenilenince tam uygulanır.
 
-Mobil: joystick (sol alt), ekranın sağ tarafını sürükleyerek bakış, ekran düğmeleri (KULLAN, SOL/SAĞ, 1, 2, 🔦, ⚡ (basılı tutulur: S2G), ⟳, KOŞ, EĞİL (aç/kapa), ZIPLA, 🎤, Ses, Mik, Q, Liste, Yaz, ☰).
+**Işıklar (v4.3):** Haritada kaç ışık olursa olsun aynı anda yalnızca sana **en yakın** N tanesi gerçek ışık olarak çizilir (N = kalite ayarı: `config.js → QUALITY_PRESETS.maxLights`); yuvalar yumuşakça yanıp söner, ışık sayısı sabit kaldığı için takılma olmaz (önceden sıradaki ilk N ışık gerçekti). Oda ışıkları **kapalıyken** çok az **yakın görüş** vardır (`lights.nearVision`: kameraya bağlı sönük ışık; v4.3.1'de `distance` 8 → **4 m**'ye indi; `intensity` / `distance` ile ayarla, `intensity: 0` kapatır) ve ortam ışığı biraz artırıldı (`lights.ambientOff`). **Ayarlar → Genel → "Işık efektleri"** kutusunu kapatırsan oda lambaları ve yakın görüş ışığı çizilmez, ortam **düz aydınlatılır** (`lights.flat`): oda ışıkları yanıkken parlak (`intensity`), **kapanınca yine karanlık** (`darkIntensity` + yoğun sis `fogDark`; karanlıkta görüş mesafesini sis belirler), FPS belirgin artar; fener çalışmaya devam eder (anahtarı değiştirirken kısa bir takılma olabilir). Gece / gündüz kuralları (Medyum, S2G) bundan etkilenmez. Uzak oyuncuların fener gölge haritaları iki karede bir yenilenir.
 
 ---
 
@@ -167,7 +168,7 @@ Kimse rolünü yapmak zorunda değildir: bu bir arkadaş oyunu, kodda rol dış�
 | **Uyurgezer** | Masum | **X:** 5 sn **uyur**: ekran **tamamen kararır, "Uyuyorsun…" yazar**, hareket edemez; sonra rastgele bir odaya ışınlanır ve ekran açılır. **1 dk bekleme.** |
 | **Bombacı** | Masum | **X:** düğmeye basınca **anında** patlar (bekleme yok); **4,5 m** içindeki **herkesi** (kendisi dahil) öldürür. |
 | **Medyum** | Masum | **X:** yalnızca **gece** (ışıklar kapalıyken) bir oyuncu seç → onu mesafeden bağımsız duyarsın; karşılıklı ya da tek yönlü olabilir. **Sabah ışıklar açılınca bağlantı kendiliğinden kesilir**, gece tekrar bağlanabilirsin. Kullanım sınırı yok. Yalnızca sesli modda işe yarar. |
-| **Sevgililer** | — | İki masum bağlıdır; biri ölürse diğeri de ölür. Birbirlerini bilirler. |
+| **Sevgililer (Aşık)** | — | **Her çift iki masumdur**; biri ölürse diğeri de ölür, birbirlerini bilirler. Host **Rol ayarları → Sevgililer (Aşık)** satırından seçer: *Kapalı* · *Otomatik* (5+ oyuncuda 1 çift) · *1–3 çift* (oyuncu sayısı yetmezse azalır). Eski "sevgililer olsun" kutusu kaldırıldı. |
 
 **Gece / sabah:** Medyum kuralı ışıklara bağlıdır. Işıkların yarısından fazlası açıksa "gündüz", azı açıksa "gece" sayılır (`GAME_CONFIG.abilities.medium.nightLitFraction`). Şalterleri açıp kapatarak gece/gündüz oluşur; hiç ışık yoksa sürekli gece sayılır. **Işıklar her kapandığında yeni bir gece başlar** ve S2G'nin hakkı yenilenir (haritada hiç ışık yoksa tek bir sürekli gece olduğundan S2G tur başına 1 kez kullanır).
 
@@ -202,8 +203,8 @@ Lobide host **Rol ayarları** bölümünü açar. Her özel rolün yanında bir 
 * Altta "N oyuncu için roller: Dedektif 1 · Mafya 1–2 · Sivil 3–5 …" önizlemesi görünür (olası en az–en çok sayılar; diğer oyuncular da görür).
 * **Hepsini otomatik yap** düğmesi ayarları sıfırlar.
 
-**Oda ve lobi:** Oda kurarken ad, oyuncu sınırı (2–16), isteğe bağlı şifre, mod (sesli/sessiz), tur süresi (sınırsız – 20 dk), sevgililer ve ölü sohbeti seçilir. Host bunları lobide de değiştirebilir, oyuncu atabilir ve en az 3 oyuncu varken oyunu başlatır. Tur sırasında içeri girenler izleyici olur.
-**Oyuncu ayarları** (Menü → Ayarlar, tarayıcıda saklanır): fare hassasiyeti, görüş alanı (FOV), ses seviyesi, grafik kalitesi, ölü sohbetini gizleme · **Mikrofon:** cihaz seçimi, deneme çubuğu, açık mikrofon · **Tuşlar:** tuş atama.
+**Oda ve lobi:** Oda kurarken ad, oyuncu sınırı (2–16), isteğe bağlı şifre, mod (sesli/sessiz), tur süresi (sınırsız – 20 dk) ve ölü sohbeti seçilir (sevgililer **Rol ayarları**ndadır). Lobide **TrollHacks (konsol)** ayarı *Kapalı* yapılırsa misafirler TrollHacks'i kullanamaz. Host bunları lobide de değiştirebilir, oyuncu atabilir ve en az 3 oyuncu varken oyunu başlatır. Tur sırasında içeri girenler izleyici olur.
+**Oyuncu ayarları** (Menü → Ayarlar, tarayıcıda saklanır): fare hassasiyeti, görüş alanı (FOV), ses seviyesi, grafik kalitesi, **ışık efektleri (aç / kapa)**, ölü sohbetini gizleme · **Mikrofon:** cihaz seçimi, deneme çubuğu, açık mikrofon · **Tuşlar:** tuş atama.
 
 ---
 
@@ -226,13 +227,28 @@ Debug odasında: roller elle seçilir, **tur kendiliğinden bitmez**, zaman sın
   * **Yanına git** (seçilen oyuncunun hemen arkasına ışınlanırsın) · **Önüme getir** (seçilen oyuncu bakışının 1,8 m önüne, sana dönük ışınlanır; arada duvar varsa yaklaştırılır).
   * **Ona yaz / Herkese yaz:** kutuya yazdığın metin yalnızca seçilen oyuncunun / herkesin ekranının ortasında ~6 sn gösterilir.
   * **Gizli eşyalar:** **Roketatar**, **Bomba**, **Plazma tüfeği** (aşağıda).
-* **Oyuncular ve roller:** kendi rolünü ve botların rollerini **anında** değiştir (silah, yetenek, can yenilenir).
+* **Oyuncular ve roller:** kendi rolünü ve botların rollerini **anında** değiştir (silah, yetenek, can yenilenir). Her oyuncunun yanında **oyun içi kimliği** yazar: renk noktası + **NATO adı** (kalın) + gerçek adı (soluk); seçili oyuncu listesinde de aynıdır.
 * **Bot ekle:** *Baktığım yere ekle* nişangâhın gösterdiği zemin noktasına sana dönük bir bot koyar; *Rastgele noktaya* bir doğma noktasına koyar. En fazla `GAME_CONFIG.debug.maxBots` (16) bot.
 * **Harita raporu (konsol):** haritada **bulunan** (tür tür: ad, konum, ayarlar), **hiçbir kurala uymayan (tanınmayan)** ve **beklenip bulunamayan** her şeyi tarayıcı konsoluna yazar (**F12 → Console**). Ayrıca olası sorunları uyarır: `Collision_*` / `Spawn_*` yok, **çarpışması olmayan büyük görünür mesh'ler (içinden geçilen duvar / zemin)**, ölçeği uygulanmamış hareketli nesneler, doğma noktası oyuncudan az, şalterin hedef ışığı yok, idam şalteri var ama `DeathZone` yok, `Interact_*` hedefsiz, ayarlarda (`OBJECT_OVERRIDES`, `LIGHT_GROUPS`, `PAINTING_CONFIG`) haritada olmayan isimler, yazım hatası ihtimali (örn. `Dor_01`) vb. Debug odasında rapor **her tur başında kendiliğinden** da yazılır.
-* **Çarpışmayı göster / gizle** (**F3** ile aynı): `Collision_*` nesnelerini görünür yapar: statik duvar / zemin / merdiven **yarı saydam turuncu dolgu + açık turuncu kenar çizgileri**, kapı / tablo / hareketli duvar **mavi tel kafes** (hepsi duvarın içinden de görünür). Seçim kaydedilir, **varsayılan açık**. "Bir duvardan geçiyorum" durumunda: o duvarda turuncu dolgu yoksa çarpışması yoktur.
+* **Çarpışma görünümü** (eski **F3** tuşu kaldırıldı, yalnızca bu panelde): `Collision_*` nesnelerini görünür yapar: statik duvar / zemin / merdiven **yarı saydam turuncu dolgu + açık turuncu kenar çizgileri**, kapı / tablo / hareketli duvar **mavi tel kafes** (hepsi duvarın içinden de görünür). Seçim kaydedilmez, **varsayılan kapalı**. "Bir duvardan geçiyorum" durumunda: o duvarda turuncu dolgu yoksa çarpışması yoktur.
+* **X-ray** (Görünüm → X-ray): duvarların arkasındaki oyuncuları **yarı saydam siluet** (yalnızca bir şeyin *arkasında* kalan kısım çizilir) ve başlarının üstünde **rol + oyun içi adı** (Baiter / sevgili işaretiyle) olarak gösterir; ölüler gösterilmez.
 * **Botları sil · Turu yenile** (herkes dirilir, botlar yerinde kalır; verilen gizli eşyalar da kalır) **· Lobiye dön.**
 
-### Gizli eşyalar (yalnızca debug panelinden verilir)
+### TrollHacks (normal oyunda F2 paneli)
+
+Debug olmayan **normal bir oyunda** tarayıcı konsoluna (**F12 → Console**) şunu yaz:
+
+```js
+TrollHacks.enabled = true;   // aç   (kapatmak: TrollHacks.enabled = false;)
+```
+
+Tur sürerken **F2** aynı paneli açar: **bot ekleme, turu yenileme ve lobiye dönme dışında her şey** vardır: rol değiştir, noclip / görünmezlik / ölümsüzlük / susturma, öldür / patlat / diriltme, yanına git / önüme getir, ekrana yazı, gizli eşyalar (roketatar, bomba, plazma), harita raporu, **çarpışma görünümü** ve **X-ray**. Oyuncular panelde **oyun içi adlarıyla** (NATO adı + renk, yanında gerçek ad) görünür.
+
+* **Host da misafir de** açabilir. Misafirin işlemleri host'a istek olarak gider ve host uygular; roller / durumlar host'tan gelir (`trollInfo`, ~0,7 sn'de bir). Host kendi konsolundan her zaman açabilir.
+* Host lobide **TrollHacks (konsol)** ayarını *Kapalı* yaparsa misafirler açamaz ("Host bu odada TrollHacks kullanımına izin vermiyor" uyarısı çıkar).
+* Konsoldan `TrollHacks.xray = true;` ile X-ray panel açmadan da açılır; `TrollHacks.help()` kısa yardım yazar. Yetki bir arkadaş oyunu için "dürüstlük esaslıdır": istemci kendini ilan eder, host yalnızca lobideki ayara bakar. Herkese açık bir odada ayarı *Kapalı* bırak.
+
+### Gizli eşyalar (debug / TrollHacks panelinden verilir)
 
 Roller ve ekipmanlardan bağımsız, **herkese verilebilen** üç eşya. Panelde seçili oyuncu için düğmeye bas: eşya **verilir** (düğme `[slot] ✓` gösterir), tekrar basınca **geri alınır**. **Slot numarası verilme sırasına göre** değişir: ilk verilen **3**, sonraki **4**, üçüncüsü **5** olur (tuşlar `DEFAULT_KEYS.slot3 / slot4 / slot5`, Ayarlar → Tuşlar'dan değiştirilebilir). Biri geri alınırsa sonrakilerin numarası kayar. Eşya sol tıkla kullanılır; **1 / 2** ile boş ele ya da rol ekipmanına dönersin.
 
@@ -263,7 +279,7 @@ Botların **yapay zekası yoktur**: olduğu yerde dururlar. Vurulunca/patlayınc
 
 | Blender nesne adı | Ne olur |
 |---|---|
-| `Collision_*` | Görünmez çarpışma mesh'i (duvar, zemin, merdiven). Hiç yoksa görünür mesh'ler çarpışma sayılır. **`Collision_*` varsa YALNIZCA onlar çarpışır:** çarpışması olmayan bir duvarın içinden geçilir. **F3** (ya da debug panelindeki "Çarpışmayı göster") `Collision_*` nesnelerini yarı saydam turuncu gösterir, harita raporu eksikleri listeler. Kapalı kutular (küp) en sağlam sonucu verir; zemini kalın bir küp yap. **Merdiven için** `Collision_Stairs` olarak eğimli bir rampa koyman en pürüzsüz sonucu verir (basamak yüksekliği 0,5 m'ye kadar zaten çıkılır). |
+| `Collision_*` | Görünmez çarpışma mesh'i (duvar, zemin, merdiven). Hiç yoksa görünür mesh'ler çarpışma sayılır. **`Collision_*` varsa YALNIZCA onlar çarpışır:** çarpışması olmayan bir duvarın içinden geçilir. **F2** panelindeki **"Çarpışma görünümü"** düğmesi `Collision_*` nesnelerini yarı saydam turuncu gösterir, harita raporu eksikleri listeler. Kapalı kutular (küp) en sağlam sonucu verir; zemini kalın bir küp yap. **Merdiven için** `Collision_Stairs` olarak eğimli bir rampa koyman en pürüzsüz sonucu verir (basamak yüksekliği 0,5 m'ye kadar zaten çıkılır). |
 | `Spawn_01 …` | Doğma noktaları (Empty). Empty'nin Blender'daki **−Y** ekseni (glTF'te +Z) oyuncunun ilk bakış yönüdür; Empty'yi Z ekseninde döndürerek ayarla. Nokta sayısı oyuncudan azsa hafif sapmayla paylaşılır. |
 | `Room_01 …` | Oda bölgeleri (görünmez kutu). Uyurgezer'in ışınlanma hedefleri buradan otomatik alınır. |
 | `Door_01 …` | Kapı. **Menteşe = nesnenin orijini** (Blender'da orijini menteşe kenarına koy). Oyuncunun karşı tarafına doğru açılır. **Açıkken de katıdır** (içinden geçilmez); hareket ederken bir oyuncuya çarparsa geri döner. Sessizdir. |
@@ -298,7 +314,10 @@ Animasyon: GLB içinde klip varsa adı `Auto` / `Loop` ile başlayanlar otomatik
 | Bombacı fitili (0 = anında patlar) | `GAME_CONFIG.abilities.bomber.fuse` |
 | Gizli eşyalar (roketatar / bomba / plazma: hasar, hız, yarıçap, şarjör) · slot tuşları | `GAME_CONFIG.equipment.rocket / bomb / plasma` · `DEFAULT_KEYS.slot3 / slot4 / slot5` |
 | Serbest dönen tabloların varsayılan ekseni (`vertical` / `free` / `normal`) | `GAME_CONFIG.midPaint.axis` |
-| Çarpışma görünümü tuşu (F3) · ses seviyesi dairesi tuşu (C, basılı) | `DEFAULT_KEYS.collisionView` · `DEFAULT_KEYS.talkLevel` |
+| Ses seviyesi dairesi tuşu (C, basılı) | `DEFAULT_KEYS.talkLevel` |
+| Karakter yüzleri (klasör, doku boyutu, yüz boyutu, en çok dosya) | `GAME_CONFIG.faces` · `assets/faces/` · `js/faces.js` |
+| Işık havuzu (kalite başına ışık sayısı) · yakın görüş · düz ışık modu · ambiyans | `QUALITY_PRESETS.maxLights` · `GAME_CONFIG.lights` (`maxActive`, `nearVision`, `flat`, `ambientOff`, `pickInterval`, `fadeSpeed`) |
+| Sevgililer (otomatik çift, en az oyuncu) · TrollHacks izni | `GAME_CONFIG.lovers` · `roles.js → LOVER_MAX_PICK` · lobide "TrollHacks (konsol)" |
 | İnsan modelinin renkleri (ten, bacak) · elindeki ekipmanın tutuşu | `ragdoll.js → SKIN_TONES, LEG_GRAY` · `avatarPose.js → HOLDS` · `equipment.js → GRIPS` (birinci şahıs) |
 | Etkileşim erişimi, kamera (FOV, hassasiyet) | `GAME_CONFIG.interaction`, `GAME_CONFIG.camera` |
 | Hangi sesler tamamen sessiz | `GAME_CONFIG.audio.silent` |
@@ -338,7 +357,7 @@ Animasyon: GLB içinde klip varsa adı `Auto` / `Loop` ile başlayanlar otomatik
 ```
 murder/
 ├── index.html · style.css
-├── assets/            house.glb (senin evin) · models/ · sounds/ (door.mp3, custom.mp3 — yer tutucu)
+├── assets/            house.glb (senin evin) · models/ · sounds/ (door.mp3, custom.mp3 — yer tutucu) · faces/ (karakter yüzleri: PNG / SVG + faces.json)
 └── js/
     ├── main.js        başlatma + oyun döngüsü           ├── config.js     bütün ayarlar + isim kuralları
     ├── context.js     modüller arası ortak durum        ├── util.js · audio.js · input.js · keybinds.js (tuş atama)
@@ -346,7 +365,7 @@ murder/
     ├── blenderLoader.js  GLB yükleme + isimle tanıma    ├── fallbackHouse.js  örnek ev
     ├── world.js       tanınan nesneleri sistemlere dağıtır
     ├── collision.js   BVH tabanlı kapsül çarpışma (kesişme düzeltmesi, duvar geçme kilidi), ışın testi, çarpışma görünümü
-    ├── doors.js · lights.js · cage.js · specialDoor.js · paintings.js · execution.js · kinematic.js
+    ├── doors.js · lights.js (ışık havuzu) · cage.js · specialDoor.js · paintings.js · execution.js · kinematic.js
     ├── ladders.js     merdiven (Ladder_*): "kapsül değiyor mu?" sorgusu; tırmanma movement.js'te
     ├── midPaints.js   serbest dönen tablolar (MidPaint_*): host'ta rijit gövde fiziği + ağ yayını
     ├── grab.js        taşınabilir eşyalar (host fiziği)  ├── corpse.js   cesetler (taşıma, ağ)  ├── ragdoll.js  ceset fiziği + görünümü
@@ -360,7 +379,7 @@ murder/
     ├── roles.js · rounds.js · combat.js · host.js        (host otoritesi: roller, hasar, tur, ses rotaları, debug/bot)
     ├── multiplayer.js · client.js                        (ağ + mesajları oyuna uygulama; yerel debug odası)
     ├── voice.js       PeerJS yakınlık sesi + mikrofon seçimi  ├── chat.js · radialMenu.js · playerList.js
-    └── ui.js · debug.js · mobile.js · effects.js · equipment.js
+    └── ui.js · debug.js (debug / TrollHacks paneli) · troll.js (TrollHacks + X-ray) · faces.js · effects.js · equipment.js
 ```
 
 **Ağ mimarisi:** Host'un tarayıcısı oyun durumunun tek sahibidir (roller, can, hasar, tur, kapı/eşya olayları). İstemciler yalnızca istek yollar; sonucu host doğrulayıp herkese yayınlar.
@@ -371,10 +390,12 @@ Ses taşıma kısmı `voice.js` içinde izole olduğu için ileride SFU'ya geçm
 
 ## 8. Bilinen notlar
 
-* Bu teslimde (v4.2) oyun tarayıcıda **çalıştırılıp denenmedi** (istenildiği gibi). Kod statik olarak denetlendi: sözdizimi, import/export eşleşmesi, tanımsız/kullanılmayan değişken taraması ve modüller arası çağrı kontrolü temiz.
+* Bu teslimde (v4.3.1) oyun tarayıcıda **çalıştırılıp denenmedi** (istenildiği gibi). Kod statik olarak denetlendi: sözdizimi, import/export eşleşmesi, tanımsız/kullanılmayan değişken taraması ve modüller arası çağrı kontrolü temiz.
   İlk denemede bir sorun görürsen tarayıcı konsolundaki (F12) hata satırı sorunu hızla gösterir.
+* **v4.3'ün hepsi oyun içinde denenmedi:** yüzler (boyut / konum / şeffaflık), TrollHacks (konsol bayrağı, host izni, misafir işlemleri), X-ray (siluet + etiket), ışık havuzu (yuva geçişleri), "Işık efektleri" kapalı modu (`lights.flat` → `intensity`, `darkIntensity`, `fogDark` gözle ayarlanmadı; karanlıkta çok açık / koyu gelirse bu üçünü değiştir) ve karanlıkta yakın görüş (`lights.nearVision` değerleri tahmindir: çok karanlık / aydınlık gelirse `intensity` / `distance` değiştir). Yüz dosyası yoksa kafa yüzsüz kalır; klasör listelenemiyorsa (GitHub Pages gibi) `assets/faces/faces.json` kullan.
+* **Mobil destek kaldırıldı** (v4.3): dokunmatik kontroller, `mobile.js` ve ilgili ayarlar silindi; yalnızca klavye + fare. v4.3, senin düzenlediğin `index.zip` (v4.2 üzerine ışık / kalite / çömelme / ses / menü değişiklikleri) temel alınarak hazırlandı.
 * **v4.2'nin hepsi oyun içinde denenmedi:** iki elli tutuşlar, yeni silah modelleri, animasyonlar, gizli eşyalar, debug araçları, büyük örnek ev, çarpışma görünümü, basılı tutulan ses dairesi. Elde tutulan modellerin konumu (`equipment.js → GRIPS` / `TIPS`, `avatarPose.js → HOLDS`) gözle ayarlanmadı; bir silah elde yamuk ya da fazla uzun / yakın duruyorsa **yalnızca o satırdaki sayıları** değiştirmek yeter.
-* **Çarpışma görünümü varsayılan açık** olduğu için (istendiği gibi) örnek evde ve `Collision_*` olan haritalarda oyun turuncu görünür; kapatmak için **F3** (seçim kaydedilir). Çok büyük haritada FPS düşerse F3 ile kapat.
+* **Çarpışma görünümü varsayılan kapalı** (v4.3): yalnızca F2 panelindeki (debug / TrollHacks) düğmeyle açılır, seçim kaydedilmez; F3 kısayolu kaldırıldı. Açıkken çok büyük haritada FPS düşebilir.
 * **Gizli eşyalar / debug:** roket, plazma mermisi ve bomba **host'ta** hesaplanır (host'un gecikmesi herkesi etkiler); roketatar ve bomba yakında patlarsa seni de öldürür. **Noclip** seçilen oyuncunun kendi bilgisayarında hesaplanır (sunucu doğrulaması yok; yalnızca debug odasında). **Görünmez** modeli ve feneri gizler, sesi gizlemez. **Cesedinde diriltme**: ceset bulunamazsa oyuncu doğma noktasında dirilir.
 * Host oyundan çıkarsa oda kapanır (host devri yok).
 * Kalite ayarı ev materyallerini ve **fener gölgelerini** yüklemede belirler; tam etki için sayfayı yenile. Gölgeler yalnızca fener içindir (en fazla 1 + 3 ışık).

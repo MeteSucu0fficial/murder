@@ -126,10 +126,6 @@ export class Rate {
   }
 }
 
-export const isTouchDevice = () =>
-  typeof window !== 'undefined' && ('ontouchstart' in window || (navigator.maxTouchPoints || 0) > 0) &&
-  window.matchMedia?.('(pointer: coarse)').matches;
-
 export const store = {
   get(key, def) {
     try {

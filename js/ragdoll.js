@@ -5,6 +5,7 @@
 // Ağda noktalar santimetre tamsayı olarak taşınır (42 sayı / ceset).
 import * as THREE from 'three';
 import { GAME_CONFIG } from './config.js';
+import { FACES } from './faces.js';
 
 const CC = GAME_CONFIG.corpse;
 const PL = GAME_CONFIG.player;
@@ -589,7 +590,7 @@ export class RagdollSim {
 const BOX = new THREE.BoxGeometry(1, 1, 1);
 export const LEG_GRAY = 0x5a616b; // pantolon / bacaklar HER ZAMAN gri (oyuncu rengi yalnızca üstte: gövde + kollar)
 export const SKIN_TONES = [0xeec3a0, 0x8a5638]; // kafa / eller: açık ten rengi ya da kahverengi
-const HAIR = 0x2b2119;
+const FACE_GEO = new THREE.PlaneGeometry(1, 1); // yüz levhası (boyut: GAME_CONFIG.faces.size ile ölçeklenir)
 
 /** Oyuncu kimliğinden her zaman aynı ten rengi (açık ya da kahverengi): herkes aynı oyuncuyu aynı renkte görür. */
 export function skinTone(id) {
@@ -618,8 +619,24 @@ export class RagdollView {
     this.bodyMat = new THREE.MeshLambertMaterial(); // üst: gövde + kollar (oyuncu rengi / ırgat grisi)
     this.legMat = new THREE.MeshLambertMaterial({ color: new THREE.Color(LEG_GRAY).multiplyScalar(shade) }); // bacaklar: hep gri
     this.skinMat = new THREE.MeshLambertMaterial(); // kafa + eller
-    this.hairMat = new THREE.MeshLambertMaterial({ color: new THREE.Color(HAIR).multiplyScalar(Math.min(1, shade * 1.2)) });
-    this.visorMat = new THREE.MeshBasicMaterial({ color: 0x0c0d10 }); // göz / kaş
+    // Yüz levhası: şeffaf zeminli PNG / SVG (assets/faces). Doku önceden çarpılmış alfa ile yüklenir (kenarlarda koyu halka olmasın),
+    // bu yüzden karışım "bir, bir eksi kaynak alfa" olarak elle kurulur. Işıklandırma kafa ile aynıdır (karanlıkta yüz de kararır).
+    this.faceMat = new THREE.MeshLambertMaterial({
+      map: FACES.blank,
+      transparent: true,
+      depthWrite: false,
+      polygonOffset: true,
+      polygonOffsetFactor: -2,
+      polygonOffsetUnits: -2,
+      blending: THREE.CustomBlending,
+      blendSrc: THREE.OneFactor,
+      blendDst: THREE.OneMinusSrcAlphaFactor,
+      blendSrcAlpha: THREE.OneFactor,
+      blendDstAlpha: THREE.OneMinusSrcAlphaFactor,
+    });
+    this.faceMat.color.setScalar(Math.min(1, shade * 1.2));
+    this.faceName = null;
+    this.disposed = false;
     this.setColor(color);
     this.setSkin(skin);
     this.group = new THREE.Group();
@@ -639,11 +656,15 @@ export class RagdollView {
     this.torso = new THREE.Group();
     this.torso.add(box(this.bodyMat, 0.5, 0.64, 0.26), box(this.legMat, 0.506, 0.07, 0.266, 0, -0.285, 0));
 
-    // kafa: ten rengi, saç, göz ve içe çatık kaşlar (+Z = ileri; gövde tabanı: x sol, y yukarı, z ileri)
+    // kafa: ten rengi küp + ÖN yüzüne (+Z = ileri; gövde tabanı: x sol, y yukarı, z ileri) oturan yüz levhası. Saç / göz / kaş modeli YOK:
+    // yüz tamamen assets/faces içindeki PNG / SVG'den gelir (bkz. faces.js; setFace ile atanır).
     this.head = new THREE.Group();
-    this.head.add(
-      box(this.skinMat, 0.3, 0.3, 0.3)
-    );
+    this.head.add(box(this.skinMat, 0.3, 0.3, 0.3));
+    this.face = new THREE.Mesh(FACE_GEO, this.faceMat);
+    this.face.scale.set(GAME_CONFIG.faces.size, GAME_CONFIG.faces.size, 1);
+    this.face.position.set(0, 0, GAME_CONFIG.faces.offsetZ);
+    this.face.visible = false;
+    this.head.add(this.face);
 
     this.group.add(this.torso, this.head);
     this.limbs = LIMBS.map(([a, b, w, ext, shift, kind]) => {
@@ -667,6 +688,19 @@ export class RagdollView {
   /** Kafa + el ten rengi (hex). */
   setSkin(hex) {
     this.skinMat.color.set(hex).multiplyScalar(Math.min(1, this.shade * 1.2));
+  }
+
+  /** Yüz: assets/faces içindeki dosya adı (örn. "yuz1.svg"); null / bulunamayan dosya = yüzsüz kafa. Doku yüklenince kendiliğinden görünür. */
+  setFace(name) {
+    this.faceName = name || null;
+    this.face.visible = false;
+    if (!name) return;
+    FACES.load(name).then((tex) => {
+      if (this.disposed || this.faceName !== name || !tex) return;
+      this.faceMat.map = tex;
+      this.faceMat.needsUpdate = true;
+      this.face.visible = true;
+    });
   }
 
   /** Float32Array(42) dünya noktalarını doğrudan yazar. */
@@ -732,11 +766,11 @@ export class RagdollView {
   }
 
   dispose() {
+    this.disposed = true;
     this.group.removeFromParent();
     this.bodyMat.dispose();
     this.legMat.dispose();
     this.skinMat.dispose();
-    this.hairMat.dispose();
-    this.visorMat.dispose();
+    this.faceMat.dispose(); // yüz dokuları paylaşımlıdır (faces.js önbelleği): burada silinmez
   }
 }

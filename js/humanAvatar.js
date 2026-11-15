@@ -4,12 +4,10 @@
 // Bacaklar iki kemikli IK ile çözülür (ayak hep yere basar, diz öne bükülür); kollar karşı bacakla sallanır.
 // Ekipman elde: iki elle tutulan silahlarda (tabanca, tarama, plazma, roketatar, bomba) iki kol da 3B IK ile silaha uzanır (avatarPose.js).
 import * as THREE from 'three';
-import { GAME_CONFIG } from './config.js';
 import { R, RagdollView, SKIN_TONES, TEMPLATE as T } from './ragdoll.js';
 import { buildEquipmentMesh, GRIPS } from './equipment.js';
 import { ACTION_DUR, HOLDS, actionPose, ik3 } from './avatarPose.js';
 
-const F = GAME_CONFIG.flashlight;
 const { HEAD, LSH, RSH, LHIP, RHIP, LEL, REL, LHAND, RHAND, LKNEE, RKNEE, LFOOT, RFOOT, BACK } = R;
 const X_AXIS = new THREE.Vector3(1, 0, 0);
 const Y_AXIS = new THREE.Vector3(0, 1, 0);
@@ -91,23 +89,8 @@ export class HumanAvatar {
     this.mount = new THREE.Group();
     this.group.add(this.mount);
 
-    // fener konisi kafaya bağlıdır (kafa bakış açısıyla döner)
-    const len = F.beamLength;
-    this.beamBase = len;
-    const g = new THREE.ConeGeometry(Math.tan(F.angle) * len, len, 20, 1, true);
-    g.translate(0, -len / 2, 0);
-    g.rotateX(-Math.PI / 2);
-    this.beam = new THREE.Mesh(
-      g,
-      new THREE.MeshBasicMaterial({
-        color: F.color, transparent: true, opacity: F.coneOpacity, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide,
-      }),
-    );
-    this.beam.visible = false;
-    this.beamMount = new THREE.Group();
-    this.beamMount.position.set(0, -0.02, 0.17);
-    this.beamMount.add(this.beam);
-    this.view.head.add(this.beamMount);
+    // Fener yanıyor mu? Yalnızca kafa animasyonu içindir; ışığın kendisi scene.js'teki SpotLight havuzundan gelir (görünür ışık konisi YOK).
+    this.lit = false;
 
     this.phase = Math.random() * 6.28;
     this.climbPhase = 0;
@@ -137,6 +120,11 @@ export class HumanAvatar {
     this.view.setSkin(hex);
   }
 
+  /** Yüz dosyası adı (assets/faces); kimlikle birlikte gelir. */
+  setFace(name) {
+    this.view.setFace(name);
+  }
+
   setEquipment(type) {
     if (type === this.equipType) return;
     this.equipType = type;
@@ -151,12 +139,7 @@ export class HumanAvatar {
   }
 
   setFlashlight(on) {
-    this.beam.visible = on;
-  }
-
-  /** Koni uzunluğu: aynı açıyla kısalır (duvara değen fener ışığı duvarın öbür yanında görünmesin). */
-  setBeamLength(l) {
-    this.beam.scale.setScalar(Math.max(0.05, Math.min(1, l / this.beamBase)));
+    this.lit = !!on;
   }
 
   setMoving(v) {
@@ -371,7 +354,7 @@ export class HumanAvatar {
 
     this.view.update(false); // dünya matrisleri çizim sırasında hesaplanır
     // kafa: tam bakılan yöne eğilir (fener / yüz); dururken ve fener kapalıyken hafifçe etrafa bakınır
-    const look = this.beam.visible ? 0 : Math.sin(this.t * 0.6) * 0.18 * (1 - walkAmt) * (1 - 0.8 * A);
+    const look = this.lit ? 0 : Math.sin(this.t * 0.6) * 0.18 * (1 - walkAmt) * (1 - 0.8 * A);
     _hq.setFromAxisAngle(X_AXIS, -this.pitch);
     _yq.setFromAxisAngle(Y_AXIS, look);
     this.view.head.quaternion.copy(_hq.premultiply(_yq));
@@ -387,8 +370,6 @@ export class HumanAvatar {
 
   dispose() {
     this.group.removeFromParent();
-    this.beam.geometry.dispose();
-    this.beam.material.dispose();
     this.view.dispose();
   }
 }

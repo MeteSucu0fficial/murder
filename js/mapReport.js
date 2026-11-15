@@ -102,7 +102,7 @@ function detailsOf(world, kind, e) {
       const x = sys.lights?.lights.get(e.name);
       if (x) {
         d.şiddet = x.base;
-        d.gerçekIşık = x.real ? 'evet' : 'hayır (ışık bütçesi doldu; yalnız ampul)';
+        d.gerçekIşık = x.direct ? (x.real ? 'evet (sabit ışık)' : 'hayır (ışık bütçesi doldu)') : 'ışık havuzundan: sana yakınken gerçek ışık';
         d.nodeTürü = e.node.isLight ? 'Blender ışığı' : 'nokta (Empty/mesh)';
       }
       break;
@@ -269,7 +269,7 @@ export function buildMapReport(world) {
     const lonely = [...sys.lights.lights.keys()].filter((id) => !controlled.has(id));
     if (lonely.length && sys.lights.switches.size) warnings.push(`Hiçbir şalterin kontrol etmediği ışıklar: ${lonely.join(', ')}`);
     const maxReal = Math.min(GAME_CONFIG.lights.maxActive, QUALITY_PRESETS[world.quality]?.maxLights ?? GAME_CONFIG.lights.maxActive);
-    if (sys.lights.lights.size > maxReal) warnings.push(`${sys.lights.lights.size} ışık var ama "${world.quality}" kalitesinde yalnızca ${maxReal} tanesi gerçek ışık (kalan: yalnız ampul). Performans için normaldir.`);
+    if (sys.lights.lights.size > maxReal) warnings.push(`${sys.lights.lights.size} ışık var ama "${world.quality}" kalitesinde aynı anda yalnızca sana en yakın ${maxReal} tanesi gerçek ışık olarak çizilir (ışık havuzu). Performans için normaldir.`);
     if (!sys.lights.lights.size && sys.lights.switches.size) warnings.push('Switch_* var ama Light_* yok: şalter hiçbir şeyi açıp kapatmaz.');
   }
 

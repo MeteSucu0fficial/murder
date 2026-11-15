@@ -82,7 +82,6 @@ export const GAME_CONFIG = {
     minPitch: -1.15,
     maxPitch: 1.15,
     sensitivity: 0.0023,
-    touchSensitivity: 0.0048,
   },
 
   rounds: {
@@ -92,7 +91,9 @@ export const GAME_CONFIG = {
     timeoutWinner: 'innocent', // süre dolarsa kazanan taraf
   },
 
-  lovers: { enabled: true },
+  // Sevgililer (Aşık): açık / kapalı ve kaç çift olacağı artık lobideki "Rol ayarları"ndan seçilir (roles.js → loverLimits).
+  // autoMinPlayers: "Otomatik" ayarda bu kadar ya da daha fazla oyuncu varsa 1 çift çıkar. enabled=false → otomatik hiç çıkmaz.
+  lovers: { enabled: true, autoMinPlayers: 5 },
 
   // Kapı kanadı HER ZAMAN katıdır (açıkken de içinden geçilmez). Hareket ederken bir oyuncuya değerse geri döner:
   // açılırken çarparsa kapanır, kapanırken çarparsa açılır (oyuncu kapıya sıkışmaz / itilmez).
@@ -180,10 +181,18 @@ export const GAME_CONFIG = {
     maxActive: 50, // aynı anda gerçek ışık olarak çalışacak en fazla nokta ışığı
     showBulbs: false, // Light_ nesnelerinin yerine küçük bir ampul küresi çiz
     ambientOn: 0.42,
-    ambientOff: 0.035,
+    ambientOff: 0.06, // ışıklar kapalıyken ortam (çok az)
     fogOn: 0.012,
     fogOff: 0.09,
     transitionSpeed: 4,
+    pickInterval: 0.25, // ışık havuzu "kameraya en yakın ışıkları" bu aralıkla (sn) yeniden seçer (lights.js)
+    fadeSpeed: 5, // havuzdaki bir ışığın yanıp sönme hızı (1/sn): ışık değişince zıplama olmaz
+    // YAKIN GÖRÜŞ: odanın ışıkları kapalıyken kameraya bağlı sönük bir ışık yakın çevreyi çok az gösterir (tamamen kör kalma).
+    // distance = görüş mesafesi (m; v4.3.1'de 8 → 4'e indirildi). Daha fazla görmek için intensity / distance artır; kapatmak için intensity: 0.
+    nearVision: { intensity: 3, distance: 4, decay: 1.2, color: 0xb9c6ff },
+    // "Işık efektleri: kapalı" (Ayarlar): gerçek oda ışığı / yakın görüş ışığı yok (fener kalır); ortam düz aydınlatılır:
+    // oda ışıkları yanıkken parlak (intensity), kapanınca karanlık (darkIntensity + sis). fogDark büyüdükçe karanlıkta görüş mesafesi kısalır.
+    flat: { intensity: 2.6, darkIntensity: 1.2, fogDark: 0.3, sky: 0xffffff, ground: 0xa6adbd },
   },
 
   flashlight: {
@@ -191,11 +200,7 @@ export const GAME_CONFIG = {
     angle: 0.5,
     penumbra: 0.5,
     intensity: 95,
-    color: 0xfff1cf,
-    coneOpacity: 0.06,
-    maxRemoteLights: 3, // diğer oyuncuların fenerleri için gerçek ışık havuzu
-    beamLength: 10.8, // uzak oyuncunun fener konisinin (görsel) uzunluğu; duvara değince kısalır
-    // Fener ışığı duvardan geçmez:
+    color: 0xfff1cf,    maxRemoteLights: 3, // diğer oyuncuların fenerleri için gerçek ışık havuzu    // Fener ışığı duvardan geçmez:
     //  · Orta/Yüksek kalite: gerçek gölge haritası (QUALITY_PRESETS → shadows).
     //  · Düşük kalite: gölge yok; ışık menzili baktığın yöndeki en yakın duvara göre kısılır (menzil = duvar mesafesi × clipScale + clipPad, en az clipMin).
     shadowBias: -0.0008,
@@ -330,6 +335,15 @@ export const GAME_CONFIG = {
     interpolation: 12, // uzak oyuncu yumuşatma katsayısı
   },
 
+  // Karakter yüzleri (faces.js): assets/faces içindeki PNG / SVG dosyaları kafanın ön yüzüne yapışır; her tur rastgele dağıtılır.
+  faces: {
+    dir: 'assets/faces/',
+    textureSize: 256, // yüz dokusu çözünürlüğü (px); görüntü oranı bozulmadan bu kareye sığdırılır
+    size: 0.3, // levha boyutu (m) = kafa küpünün ön yüzü (0.3 × 0.3)
+    offsetZ: 0.1503, // kafa yüzeyinin (0.15) hemen önü: yüz kafanın içinde kalıp titremesin
+    maxFaces: 80, // klasörden en çok bu kadar dosya okunur
+  },
+
   graphics: { quality: 'medium' },
 };
 
@@ -403,14 +417,7 @@ export const EXPECTED_KINDS = [
 // Her nesneye özel ayar (isteğe bağlı). Blender'da Custom Properties olarak da girilebilir
 // (glTF extras → userData); öncelik: bu tablo > Blender özellikleri > varsayılan.
 export const OBJECT_OVERRIDES = {
-  // Door_01: { openAngle: 1.9, duration: 0.6 },
-  // Grab_01: { weight: 3, carryable: true, throwable: true, collisionSize: [0.4, 0.4, 0.4], rotationLimit: { pitch: [-0.8, 0.8] } },
-  // Interact_Door_01: { radius: 2.2 },
-  Grab_01: { weight: 1 },
-  Grab_02: { weight: 2 },
-  Grab_03: { weight: 0.6 },
-  Grab_04: { weight: 4, throwable: false },
-  Grab_08: { weight: 4, throwable: false },
+  Grab_01: { weight: 1 }
 };
 
 // Şalter → kontrol ettiği ışıklar. Değerler önek (startsWith) veya tam isimdir.
@@ -421,7 +428,26 @@ export const LIGHT_GROUPS = {
 // Tablo konumları (açık / kapalı). Konum = dünya koordinatı, offset = tablonun KENDİ eksenlerinde kayma.
 // closed boş bırakılırsa Blender'daki başlangıç konumu "kapalı" sayılır.
 export const PAINTING_CONFIG = {
-  default: { duration: 0.7, closed: {}, open: { offset: [0, 2, 0], rotationOffset: [0, 0, 0] } }
+  default: { duration: 0.7, closed: {}, open: { offset: [0, 2, 0], rotationOffset: [0, 0, 0] } },
+  Painting_9: { duration: 0.7, closed: {}, open: {rotationOffset: [0, 1.57, 0] } },
+  Painting_19: { duration: 0.7, closed: {}, open: { offset: [2, 0, 0]} },
+  Painting_15: { duration: 0.7, closed: {}, open: { offset: [2, 0, 0]} },
+  Painting_18: { duration: 0.7, closed: {}, open: { offset: [2.5, 0, 0]} },
+  Painting_2: { duration: 0.7, closed: {}, open: { offset: [0, 0, 2]} },
+  Painting_4: { duration: 0.7, closed: {}, open: { offset: [0, 0, -2]} },
+  Painting_14: { duration: 0.7, closed: {}, open: { offset: [0, 0, -2]} },
+  Painting_1: { duration: 0.7, closed: {}, open: { offset: [0, 2.5, 0]} },
+  Painting_5: { duration: 0.7, closed: {}, open: { offset: [0, 2.5, 0]} },
+  Painting_3: { duration: 0.7, closed: {}, open: { offset: [0, 1.4, 0]} },
+  Painting_6: { duration: 0.7, closed: {}, open: { offset: [0, 2.5, 0]} },
+  Painting_7: { duration: 0.7, closed: {}, open: { offset: [0, 1.5, 0]} },
+  Painting_8: { duration: 0.7, closed: {}, open: { offset: [0, 2.5, 0]} },
+  Painting_10: { duration: 0.7, closed: {}, open: { offset: [0, 2.1, 0]} },
+  Painting_11: { duration: 0.7, closed: {}, open: { offset: [0, 2.2, 0]} },
+  Painting_12: { duration: 0.7, closed: {}, open: { offset: [0, 2.3, 0]} },
+  Painting_17: { duration: 0.7, closed: {}, open: { offset: [0, 2.7, 0]} },
+  Painting_13: { duration: 0.7, closed: {}, open: { offset: [0, 2.5, 0]} },
+  Painting_16: { duration: 0.7, closed: {}, open: { offset: [0, 2.5, 0]} },
 };
 
 // Q dairesel menüsü. Buraya öğe eklemek yeterli.
@@ -478,9 +504,7 @@ export const DEFAULT_KEYS = {
   flashlight: 'KeyF',
   reload: 'KeyR',
   chat: 'Enter',
-  debug: 'F2', // debug panelini aç/kapat (yalnızca debug odasında)
-  collisionView: '', // Collision_* nesnelerini göster / gizle (yarı saydam turuncu)
-  menu: 'Escape',
+  debug: 'F2', // debug panelini aç/kapat (yalnızca debug odasında)  menu: 'Escape',
   prevSpectate: 'ArrowLeft',
   nextSpectate: 'ArrowRight',
 };

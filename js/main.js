@@ -1,7 +1,7 @@
 
 // Başlangıç noktası: sahneyi, evi (GLB veya örnek ev), sistemleri ve arayüzü kurar; oyun döngüsünü çalıştırır.
 // Modüller birbirini doğrudan import etmek yerine ortak `ctx` nesnesi üzerinden konuşur (bkz. context.js).
-import { GAME_CONFIG, KEYS } from './config.js';
+import { GAME_CONFIG } from './config.js';
 import { ctx } from './context.js';
 import { audio } from './audio.js';
 import { SceneManager } from './scene.js';
@@ -25,7 +25,9 @@ import { RadialMenu, VOICE_MENU } from './radialMenu.js';
 import { PlayerList } from './playerList.js';
 import { LookName } from './lookName.js';
 import { DebugPanel } from './debug.js';
+import { TrollHacks, XRay } from './troll.js';
 import { store } from './util.js';
+import { FACES } from './faces.js';
 import { loadKeys } from './keybinds.js';
 import { initTabGuard } from './tabGuard.js';
 
@@ -61,12 +63,17 @@ async function boot() {
     (f) => setLoading('Ev yükleniyor…', 0.1 + f * 0.7)
   );
 
+  setLoading('Yüzler yükleniyor…', 0.82);
+  // assets/faces listesi (en çok 2,5 sn beklenir; liste gecikirse oyun yine açılır, yüzler sonradan görünür)
+  await Promise.race([FACES.init(), new Promise((resolve) => setTimeout(resolve, 2500))]);
+
   setLoading('Sistemler kuruluyor…', 0.85);
   ctx.world = new World({
     sceneMgr: ctx.sceneMgr,
     house,
     quality: ctx.settings.quality
   });
+  ctx.world.setLightsEnabled(ctx.settings.lights !== false); // Ayarlar → Işık efektleri (varsayılan açık)
 
   ctx.grab = ctx.world.grab;
   ctx.world.onSound = (name, pos) =>
@@ -105,13 +112,30 @@ async function boot() {
   ctx.voiceRadial = new RadialMenu(uiRoot, VOICE_MENU);
   ctx.playerList = new PlayerList(uiRoot);
   ctx.debug = new DebugPanel(uiRoot);
+  ctx.xray = new XRay(uiRoot);
 
   ctx.client.attach(ctx.net);
   ctx.ui.attach(ctx.net);
   ctx.ui.showMenu();
 
-  const code = new URLSearchParams(location.search).get('oda');
-  if (code) ctx.ui.prefillJoin(code);
+  // Davet bağlantısı: sayfa#KOD (GitHub gibi sitelerde ?oda=KOD kabul edilmiyor); eski ?oda=KOD bağlantıları da çalışır.
+  // Sayfa açıkken yeni bir #KOD yapıştırılırsa (yalnızca hash değişir, sayfa yenilenmez) kod yine doldurulur.
+  const inviteCode = () => {
+    let c = location.hash.slice(1);
+    try {
+      c = decodeURIComponent(c);
+    } catch (e) {
+      /* bozuk % dizisi: olduğu gibi kullan */
+    }
+    c = c.replace(/^oda=/i, '') || new URLSearchParams(location.search).get('oda') || '';
+    return c.replace(/[^A-Za-z0-9]/g, '').slice(0, 8);
+  };
+  const applyInvite = () => {
+    const c = inviteCode();
+    if (c) ctx.ui.prefillJoin(c);
+  };
+  applyInvite();
+  window.addEventListener('hashchange', applyInvite);
 
   // ---- imleç kilidi / duraklatma ----
   ctx.input.onLockChange((locked) => {
@@ -156,34 +180,7 @@ async function boot() {
     }
   });
 
-  // Collision_* nesneleri görünür (yarı saydam turuncu)
-  ctx.toggleCollisionView = () => {
-    const on = ctx.world.setCollisionView(!ctx.world.collision.debugOn);
-
-    ctx.settings.showCollision = on;
-    store.set('settings', ctx.settings);
-
-    ctx.ui.toast(
-      on ? 'Çarpışma nesneleri görünür' : 'Çarpışma nesneleri gizli',
-      1200
-    );
-
-    return on;
-  };
-
-  if (
-    ctx.world.collisionMode === 'collision' &&
-    ctx.settings.showCollision !== false
-  ) {
-    ctx.world.setCollisionView(false);
-  }
-
-  if (
-    ctx.world.collisionMode === 'collision' &&
-    ctx.settings.showCollision !== true
-  ) {
-    ctx.world.setCollisionView(false);
-  }
+  // Çarpışma görünümü (Collision_* nesneleri) artık kısayol tuşuyla açılmaz: yalnızca debug / TrollHacks panelinden (varsayılan kapalı).
 
   window.__game = ctx;
 
@@ -212,16 +209,14 @@ async function boot() {
   requestAnimationFrame(frame);
 }
 
+let trollErrored = false;
+
 function step(dt) {
   const live =
     (ctx.phase === 'playing' || ctx.phase === 'ended') &&
     !!ctx.me;
 
   ctx.world.update(dt);
-
-  if (ctx.input.wasPressed(KEYS.collisionView)) {
-    ctx.toggleCollisionView();
-  }
 
   ctx.radial.update(dt);
   ctx.voiceRadial.update(dt);
@@ -257,6 +252,14 @@ function step(dt) {
   ctx.ui.update(dt);
   ctx.lookName.update(dt);
   ctx.debug.update(dt);
+  try {
+    TrollHacks.update(dt);
+    ctx.xray.update();
+  } catch (e) {
+    // hile araçlarındaki bir hata oyunun çizimini durdurmasın
+    if (!trollErrored) console.error('[TrollHacks / X-ray hatası]', e);
+    trollErrored = true;
+  }
 
   ctx.sceneMgr.update(dt);
   ctx.sceneMgr.render();

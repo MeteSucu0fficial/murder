@@ -6,11 +6,13 @@
 //   itemHeld · itemFree · items · corpseCarry · rag (ceset noktaları) · knife · knifeReturn · shot · stab · zap · fuse · explosion · hit · death
 //   sound · chat · teleport · freeze · baiterNotice · vr (ses rotaları) · note (kısa bilgi)
 //   bot (debug: tur sürerken eklenen hareketsiz bot) · corpseGone (debug: silinen botun cesedi)
+//   trollInfo · trollAck (TrollHacks: yetkili misafire roller / izin durumu; bkz. troll.js)
 import * as THREE from 'three';
 import { GAME_CONFIG } from './config.js';
 import { ctx } from './context.js';
 import { audio } from './audio.js';
 import { HostGame } from './host.js';
+import { TrollHacks } from './troll.js';
 import { ROLES } from './roles.js';
 import { Rate, round2 } from './util.js';
 
@@ -19,7 +21,7 @@ const _w = new THREE.Vector3();
 const _mz = new THREE.Vector3();
 const KNIFE_CAUSES = new Set(['knife', 'knifeThrow']); // bıçakla gelen hasar/ölüm: ses çalınmaz
 const toVec = (a) => new THREE.Vector3(a[0], a[1], a[2]);
-const toIdentity = (i) => ({ label: i.l, color: i.c, colorName: i.cn, code: i.k });
+const toIdentity = (i) => ({ label: i.l, color: i.c, colorName: i.cn, code: i.k, face: i.f || null }); // f: assets/faces dosya adı
 
 export class GameClient {
   constructor() {
@@ -267,6 +269,12 @@ export class GameClient {
         break;
       case 'dbgFlag': // debug: noclip / görünmezlik
         this.onDbgFlag(m);
+        break;
+      case 'trollInfo': // TrollHacks: roller / hayat / işaretler (host'tan, yalnızca yetkili misafire)
+        TrollHacks.onInfo(m);
+        break;
+      case 'trollAck': // TrollHacks: host izin verdi / vermedi
+        TrollHacks.onAck(m);
         break;
       case 'screenText': // debug: ekrana yazı
         ctx.ui.screenText(String(m.text || ''), (m.dur || 6) * 1000);

@@ -2,7 +2,6 @@
 //  • ctx.radial      — Q: ses menüsü. Seçenekler config.js → RADIAL_MENU_ITEMS (dinamik: ekledikçe daire büyür).
 //  • ctx.voiceRadial — C: konuşma seviyesi menüsü (Fısıltı / Normal / Bağırma; sessiz modda yalnızca Normal / Bağırma).
 // Masaüstü: tuşu basılı tut, fareyi yöne çek, tuşu bırak → seçilen öğe uygulanır. (İmleç kilitli kaldığı için sanal imleç kullanılır.)
-// Mobil: düğmeye dokun → daire açılır → bir öğeye dokun.
 // Ses menüsünde ses host tarafından yetkilendirilir ve HERKESE çalınır (yakınlıktan bağımsız).
 // Bir ses çalarken (süresi bitene kadar) o öğe herkes için kilitlenir: tekrar basılamaz (menüde soluk görünür).
 import { KEYS, RADIAL_MENU_ITEMS } from './config.js';
@@ -19,7 +18,7 @@ export const SOUND_MENU = {
   key: () => KEYS.radial,
   items: () => RADIAL_MENU_ITEMS,
   busyAware: true,
-  hint: (touch) => (touch ? 'Bir ses seçmek için dokun' : `Bir ses seç, ${keyLabel(KEYS.radial)} tuşunu bırak`),
+  hint: () => `Bir ses seç, ${keyLabel(KEYS.radial)} tuşunu bırak`,
   canUse: () => !!ctx.me && ctx.me.alive && ctx.phase === 'playing' && !ctx.ui.modalOpen(),
   onChoose: (i) => ctx.client.toHost({ t: 'sound', i }),
 };
@@ -29,8 +28,8 @@ export const VOICE_MENU = {
   key: () => KEYS.talkLevel,
   items: () => ctx.voice?.levelChoices() || [],
   busyAware: false,
-  hint: (touch) => (touch ? 'Ses seviyesini seçmek için dokun' : `Seviyeyi seç, ${keyLabel(KEYS.talkLevel)} tuşunu bırak`),
-  canUse: (touch) => !!ctx.me && !!ctx.voice?.canSpeak() && ctx.phase !== 'menu' && !ctx.ui.modalOpen() && !ctx.playerList?.shown && (touch || ctx.input.locked),
+  hint: () => `Seviyeyi seç, ${keyLabel(KEYS.talkLevel)} tuşunu bırak`,
+  canUse: () => !!ctx.me && !!ctx.voice?.canSpeak() && ctx.phase !== 'menu' && !ctx.ui.modalOpen() && !ctx.playerList?.shown && ctx.input.locked,
   onChoose: (i, item) => ctx.voice?.chooseLevel(item?.level),
 };
 
@@ -40,10 +39,9 @@ export class RadialMenu {
     this.ring = h('div', { class: 'radial-ring' });
     this.cursor = h('div', { class: 'radial-cursor' });
     this.hint = h('div', { class: 'radial-hint' }, '');
-    this.el = h('div', { class: 'radial hidden', onclick: (e) => e.target === this.el && this.close(false) }, this.ring, this.cursor, this.hint);
+    this.el = h('div', { class: 'radial hidden' }, this.ring, this.cursor, this.hint);
     root.appendChild(this.el);
     this.isOpen = false;
-    this.touch = false;
     this.cx = 0;
     this.cy = 0;
     this.sel = -1;
@@ -77,28 +75,21 @@ export class RadialMenu {
         it.name,
         it.sub ? h('small', { style: { display: 'block', opacity: '0.7', fontSize: '11px', marginTop: '2px' } }, it.sub) : null,
       );
-      node.addEventListener('click', (e) => {
-        if (!this.touch) return;
-        e.stopPropagation();
-        this.choose(i);
-      });
       this.ring.appendChild(node);
       return node;
     });
   }
 
-  open(touch = false) {
-    if (this.isOpen || RadialMenu.active || !this.def.canUse(touch)) return;
+  open() {
+    if (this.isOpen || RadialMenu.active || !this.def.canUse()) return;
     this.build();
     if (!this.items.length) return;
     RadialMenu.active = this; // aynı anda tek daire (ikisi de sanal imleci kullanır)
     this.isOpen = true;
-    this.touch = touch;
     this.cx = this.cy = 0;
     this.sel = -1;
     this.el.classList.remove('hidden');
-    this.el.classList.toggle('touch', touch);
-    this.hint.textContent = this.def.hint(touch);
+    this.hint.textContent = this.def.hint();
     this.nodes.forEach((nd, i) => nd.classList.toggle('busy', this.isBusy(i)));
   }
 
@@ -124,21 +115,15 @@ export class RadialMenu {
     this.def.onChoose(i, this.items[i]);
   }
 
-  toggleTouch() {
-    if (this.isOpen) this.close(false);
-    else this.open(true);
-  }
-
   update() {
     const input = ctx.input;
     const down = input.isDown(this.def.key());
-    if (down && !this.isOpen) this.open(false);
+    if (down && !this.isOpen) this.open();
     if (!this.isOpen) return;
-    if (!this.def.canUse(this.touch)) {
+    if (!this.def.canUse()) {
       this.close(false);
       return;
     }
-    if (this.touch) return;
     const look = input.consumeLook();
     this.cx += look.x;
     this.cy += look.y;

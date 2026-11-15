@@ -2,7 +2,7 @@
 // Karakter görünümü DEĞİŞTİRİLEBİLİR: registerAvatar('adi', (opts) => new MyAvatar(opts)); setAvatarKind('adi');
 // Varsayılan model: humanAvatar.js (ceset modeliyle aynı kollu bacaklı gövde + basit yürüme / koşma / eğilme animasyonu).
 // Avatar arayüzü: { group, setColor(hex), setEquipment(type|null), setPitch(rad), setFlashlight(bool), setMoving(0..2), setCrouch(0..1),
-//                   setVisible(bool), update(dt), dispose(), setBeamLength?(metre) }   ← fener konisinin boyu (duvara değince kısalır); isteğe bağlı
+//                   setVisible(bool), update(dt), dispose() }   ← fener ışığı sahnedeki SpotLight'tan gelir; avatarda görünür ışık konisi yoktur
 import * as THREE from 'three';
 import { GAME_CONFIG, IDENTITY } from './config.js';
 import { ctx } from './context.js';
@@ -11,9 +11,6 @@ import { HumanAvatar } from './humanAvatar.js';
 import { skinTone } from './ragdoll.js';
 
 const P = GAME_CONFIG.player;
-const F = GAME_CONFIG.flashlight;
-const _bo = new THREE.Vector3();
-const _bd = new THREE.Vector3();
 
 // ---- Avatar kayıt tablosu: yeni karakter modelleri buradan eklenir ----
 export const AVATAR_FACTORIES = { human: (opts) => new HumanAvatar(opts) };
@@ -49,9 +46,6 @@ export class PlayerEntity {
     this.frozenLeft = 0; // hareket edemez (uyurgezer, elektroşok)
     this.hideBody = false; // kamera bu oyuncunun gözünde (kendim / izlediğim): gövdesi çizilmez
     this.hasNet = false;
-    this.beamLen = F.beamLength; // fener konisinin şu anki (yumuşatılmış) boyu
-    this.beamTarget = F.beamLength;
-    this.beamT = Math.random() * 0.1;
     this.air = false; // havada (zıplıyor / düşüyor): animasyon (ağdan gelir; yerel oyuncuda movement.js yazar)
     this.climbing = false; // tırmanıyor
     this.invisible = false; // debug: görünmez (başkaları gövdesini görmez)
@@ -62,6 +56,7 @@ export class PlayerEntity {
   setIdentity(idn) {
     this.identity = idn;
     this.avatar.setColor(idn.color);
+    this.avatar.setFace?.(idn.face);
   }
 
   setAlive(alive) {
@@ -120,7 +115,6 @@ export class PlayerEntity {
     a.setEquipment(this.alive && this.eq.out ? this.eq.type : null);
     const lit = this.alive && this.flashlight && !this.invisible;
     a.setFlashlight(lit);
-    if (lit && !this.hideBody) this._updateBeam(dt);
     a.setMoving(this.speed);
     a.setCrouch(clamp((P.eyeHeight - this.eyeH) / (P.eyeHeight - P.crouchEyeHeight), 0, 1));
     a.setAir?.(this.air);
@@ -133,25 +127,6 @@ export class PlayerEntity {
   /** Tek seferlik hareket: 'stab' | 'throw' | 'shoot' | 'zap' | 'rocket' | 'plant' (saldıran oyuncunun modelinde oynar). */
   playAction(kind) {
     this.avatar.playAction?.(kind);
-  }
-
-  /** Fener konisinin boyunu önündeki duvara göre kısar (saniyede ~10 ışın; boy yumuşatılır). */
-  _updateBeam(dt) {
-    if (!this.avatar.setBeamLength) return;
-    this.beamT -= dt;
-    if (this.beamT <= 0) {
-      this.beamT = 0.1;
-      const col = ctx.world?.collision;
-      if (col) {
-        const cp = Math.cos(this.pitch);
-        _bd.set(Math.sin(this.yaw) * cp, Math.sin(this.pitch), Math.cos(this.yaw) * cp);
-        _bo.set(this.pos.x, this.pos.y + this.eyeH, this.pos.z);
-        const hit = col.raycast(_bo, _bd, F.beamLength + 0.3);
-        this.beamTarget = hit ? Math.max(0.3, hit.distance + 0.1) : F.beamLength;
-      }
-    }
-    this.beamLen += (this.beamTarget - this.beamLen) * (1 - Math.exp(-16 * dt));
-    this.avatar.setBeamLength(this.beamLen);
   }
 
   dispose() {

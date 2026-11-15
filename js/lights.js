@@ -1,9 +1,14 @@
 // Işıklar ("Light_*") ve şalterler ("Switch_*").
 // Hangi şalterin hangi ışıkları kontrol ettiği config.js → LIGHT_GROUPS içinde tanımlıdır.
 // Işıklar kapanınca ortam kararır (SceneManager.setDarkness).
+//
+// IŞIK HAVUZU (performans): haritada kaç ışık olursa olsun GPU'ya aynı anda yalnızca kalite ayarındaki sayıda (QUALITY_PRESETS → maxLights)
+// nokta ışığı gider: kameraya EN YAKIN ve açık olanlar. Işık sayısı sabit kaldığı için shader yeniden derlenmez; bir yuva başka ışığa
+// geçerken önce söner, sonra yanar (zıplama olmaz). Önceden "ilk N ışık" gerçekti (sıraya göre); artık oyuncunun bulunduğu oda her zaman aydınlıktır.
+// GLB'den gelen SpotLight / DirectionalLight gibi nokta olmayan ışıklar havuza girmez: olduğu gibi (sabit) kalır.
 import * as THREE from 'three';
 import { GAME_CONFIG, LIGHT_GROUPS, QUALITY_PRESETS } from './config.js';
-import { damp, lookupName, matchesGroupEntry, num } from './util.js';
+import { clamp, damp, lookupName, matchesGroupEntry, num } from './util.js';
 
 const BULB_GEO = new THREE.SphereGeometry(0.09, 10, 8);
 
@@ -23,35 +28,61 @@ export class LightSystem {
     this.lights = new Map();
     this.switches = new Map();
     this.interactables = [];
+    this.enabled = true; // Ayarlar → Işık efektleri (kapalıysa gerçek ışık çizilmez)
+    this.pool = []; // { light, src, keep, fade }
+    this.pickT = 0;
     const L = GAME_CONFIG.lights;
     const maxReal = Math.min(L.maxActive, QUALITY_PRESETS[world.quality]?.maxLights ?? L.maxActive);
-    let real = 0;
+    let direct = 0; // havuza girmeyen (nokta olmayan) gerçek ışıklar
+    let pooled = 0;
 
     for (const e of lightEntries) {
       const d = e.data;
+      const node = e.node;
       const intensity = num(d.intensity, L.intensity);
-      let light = e.node.isLight ? e.node : null;
-      if (light) {
+      const distance = num(d.distance, L.distance);
+      const pos = node.getWorldPosition(new THREE.Vector3());
+      const isDirect = !!node.isLight && !node.isPointLight; // SpotLight / DirectionalLight: olduğu gibi kalır
+      let light = null;
+      let real = true;
+      if (isDirect) {
         // GLB'den gelen ışık: Blender watt değerleri anlamsız olabildiği için şiddet normalize edilir.
+        light = node;
         light.intensity = intensity;
-        if (light.distance !== undefined) light.distance = num(d.distance, L.distance);
+        if (light.distance !== undefined) light.distance = distance;
         if (light.decay !== undefined) light.decay = L.decay;
         light.castShadow = false;
+        real = direct < maxReal;
+        if (real) direct++;
+        else light.visible = false; // GPU ışık bütçesi doldu
       } else {
-        light = new THREE.PointLight(0xfff0cc, intensity, num(d.distance, L.distance), L.decay);
-        e.node.add(light);
+        if (node.isLight) node.visible = false; // kaynak nokta ışığı çizilmez; yakındakiler havuzdaki ışıklara taşınır
+        pooled++;
       }
-      const isReal = real < maxReal;
-      if (isReal) real++;
-      else light.visible = false; // GPU ışık bütçesi doldu: sadece ampul görseli kalır
 
       let bulb = null;
-      if (L.showBulbs && !e.node.isMesh) {
+      if (L.showBulbs && !node.isMesh) {
         bulb = new THREE.Mesh(BULB_GEO, new THREE.MeshBasicMaterial({ color: 0xfff2c0 }));
-        e.node.add(bulb);
+        if (node.isLight) {
+          bulb.position.copy(pos); // gizlenen ışık nesnesinin çocuğu olsaydı ampul de gizlenirdi
+          world.sceneMgr.scene.add(bulb);
+        } else node.add(bulb);
       }
-      this.lights.set(e.name, { id: e.name, node: e.node, light, base: intensity, cur: 1, on: true, real: isReal, bulb });
+      this.lights.set(e.name, {
+        id: e.name, node, light, base: intensity, cur: 1, on: true, direct: isDirect, real, bulb, slot: null, d2: 0,
+        distance, pos, color: node.isLight ? node.color.clone() : new THREE.Color(0xfff0cc),
+      });
     }
+
+    const n = Math.max(0, Math.min(pooled, maxReal - direct));
+    for (let i = 0; i < n; i++) {
+      const light = new THREE.PointLight(0xfff0cc, 0, L.distance, L.decay);
+      light.castShadow = false;
+      world.sceneMgr.scene.add(light);
+      this.pool.push({ light, src: null, keep: false, fade: 0 });
+    }
+    this._assign();
+    for (const s of this.pool) s.fade = 1; // açılışta ışıklar hazır yansın
 
     for (const e of switchEntries) {
       const groups = lookupName(LIGHT_GROUPS, e.name) || [];
@@ -79,12 +110,20 @@ export class LightSystem {
         targetName: l.id,
         kind: 'switch',
         priority: 3,
-        position: l.node.getWorldPosition(new THREE.Vector3()),
+        position: l.pos.clone(),
         requireAnchor: true, // yalnızca "Interact_<ışık>" noktası varsa etkin; o noktaya bakınca seçilir
         label: () => (l.on ? 'Lambayı kapat' : 'Lambayı aç'),
         use: () => world.send({ k: 'light', id: l.id }),
       });
     }
+  }
+
+  /** Ayarlar → Işık efektleri. Kapalıyken havuz ve sabit ışıklar çizilmez (ortam düz aydınlatılır: scene.js). */
+  setEnabled(on) {
+    this.enabled = !!on;
+    for (const s of this.pool) s.light.visible = this.enabled;
+    for (const l of this.lights.values()) if (l.direct && l.real) l.light.visible = this.enabled;
+    this.pickT = 0;
   }
 
   applyEvent(ev) {
@@ -114,12 +153,64 @@ export class LightSystem {
     for (const l of this.lights.values()) {
       const t = l.on ? 1 : 0;
       l.cur = Math.abs(l.cur - t) < 0.01 ? t : damp(l.cur, t, 8, dt);
-      if (l.real) l.light.intensity = l.base * l.cur;
+      if (l.direct && l.real) l.light.intensity = l.base * l.cur;
       if (l.bulb) l.bulb.material.color.setRGB(0.12 + 0.88 * l.cur, 0.12 + 0.82 * l.cur, 0.12 + 0.6 * l.cur);
       if (l.on) onCount++;
     }
     const n = this.lights.size;
     this.world.sceneMgr.setDarkness(n ? 1 - onCount / n : 0);
+    if (this.enabled && this.pool.length) this._updatePool(dt);
+  }
+
+  /** Havuz yuvalarının yumuşak yanıp sönmesi + belirli aralıkla "en yakın ışıklar" seçimi. */
+  _updatePool(dt) {
+    const L = GAME_CONFIG.lights;
+    this.pickT -= dt;
+    if (this.pickT <= 0) {
+      this.pickT = L.pickInterval;
+      this._assign();
+    }
+    const step = dt * L.fadeSpeed;
+    for (const s of this.pool) {
+      const l = s.src;
+      if (!l) continue;
+      s.fade += clamp((s.keep ? 1 : 0) - s.fade, -step, step);
+      s.light.intensity = l.base * l.cur * s.fade;
+      if (!s.keep && s.fade <= 0.001) {
+        // tamamen söndü: yuva boşaldı, sıradaki ışığa hemen verilsin
+        s.light.intensity = 0;
+        l.slot = null;
+        s.src = null;
+        this.pickT = 0;
+      }
+    }
+  }
+
+  /** Kameraya en yakın (açık ya da sönmekte olan) ışıkları seçer; yeni seçilenleri boş yuvalara koyar, uzaklaşanları söndürür. */
+  _assign() {
+    if (!this.pool.length) return;
+    const cam = this.world.sceneMgr.camera.position;
+    const cand = [];
+    for (const l of this.lights.values()) {
+      if (l.direct || (!l.on && l.cur < 0.02)) continue;
+      l.d2 = l.pos.distanceToSquared(cam) * (l.slot ? 0.75 : 1); // zaten yanan ışığa pay: sınırda gidip gelmesin
+      cand.push(l);
+    }
+    cand.sort((a, b) => a.d2 - b.d2);
+    const want = new Set(cand.length > this.pool.length ? cand.slice(0, this.pool.length) : cand);
+    for (const s of this.pool) if (s.src) s.keep = want.has(s.src);
+    for (const l of want) {
+      if (l.slot) continue;
+      const s = this.pool.find((x) => !x.src);
+      if (!s) break; // boş yuva yok: en uzaktaki sönünce (pickT = 0) yeniden denenir
+      s.src = l;
+      s.keep = true;
+      s.fade = 0;
+      l.slot = s;
+      s.light.position.copy(l.pos);
+      s.light.color.copy(l.color);
+      s.light.distance = l.distance;
+    }
   }
 
   /** 0 = hepsi kapalı, 1 = hepsi açık */

@@ -30,6 +30,7 @@ class FlashlightManager {
     this.local = null;
     this.remote = new Map(); // playerId -> spot
     this.t = 0;
+    this.frame = 0;
   }
 
   /** Işığın çıkış noktası: göz + ileri. Önünde duvar varsa duvarın İÇİNE girmez (ışık duvarın öbür yanında doğmasın). */
@@ -75,6 +76,7 @@ class FlashlightManager {
     const sm = ctx.sceneMgr;
     const me = ctx.me;
     const k = 1 - Math.exp(-14 * dt);
+    this.frame++;
 
     // ---- yerel ----
     const wantLocal = !!(me && me.alive && me.flashlight && ctx.phase === 'playing');
@@ -109,7 +111,7 @@ class FlashlightManager {
       }
       for (const p of list) {
         if (!this.remote.has(p.id)) {
-          const s = sm.acquireSpot();
+          const s = sm.acquireSpot(true);
           if (s) this.remote.set(p.id, s);
         }
       }
@@ -126,6 +128,7 @@ class FlashlightManager {
       _eye.set(p.pos.x, p.pos.y + (p.eyeH || P.eyeHeight), p.pos.z);
       this._muzzle(_eye, _d, _o);
       this._aim(spot, _o, _d, k);
+      if (spot.light.castShadow) spot.light.shadow.needsUpdate = (this.frame & 1) === 0; // uzak fener gölgesi: iki karede bir (yarı maliyet)
     }
   }
 

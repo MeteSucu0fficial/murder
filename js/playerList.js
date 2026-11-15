@@ -8,7 +8,7 @@
 import { KEYS } from './config.js';
 import { ctx } from './context.js';
 import { MOUSE_LEFT, MOUSE_RIGHT } from './input.js';
-import { h, isTouchDevice } from './util.js';
+import { h } from './util.js';
 
 export class PlayerList {
   constructor(root) {
@@ -20,7 +20,7 @@ export class PlayerList {
     this.vcursor = h('div', { class: 'vcursor hidden' });
     root.append(this.panel, this.menu, this.vcursor);
     this.shown = false;
-    this.sticky = false; // menü / dokunmatik mod: liste TAB'a bağlı olmadan açık kalır
+    this.sticky = false; // Baiter menüsü açıkken: liste TAB'a bağlı olmadan açık kalır
     this.cx = window.innerWidth / 2;
     this.cy = window.innerHeight / 2;
     this.rows = new Map(); // id -> { el, talk }
@@ -72,13 +72,13 @@ export class PlayerList {
       );
       row.addEventListener('contextmenu', (e) => e.preventDefault());
       row.addEventListener('click', (e) => {
-        if (this.menuAllowed(pl.id)) this.openMenu(pl.id, e.clientX, e.clientY); // SOL tık (dokunmatikte dokunuş)
+        if (this.menuAllowed(pl.id)) this.openMenu(pl.id, e.clientX, e.clientY); // SOL tık
       });
       this.rows.set(pl.id, { el: row, talk });
       this.body.appendChild(row);
     }
     this.hint.textContent = isKiller
-      ? ctx.me_state.baiterUsed ? 'Bu tur Baiter seçtin (geri alınamaz).' : (isTouchDevice() ? 'Bir oyuncuya dokun: "Baiter ver"' : 'Bir oyuncuya sol tıkla: "Baiter ver" (tur başına 1 kez)')
+      ? ctx.me_state.baiterUsed ? 'Bu tur Baiter seçtin (geri alınamaz).' : 'Bir oyuncuya sol tıkla: "Baiter ver" (tur başına 1 kez)'
       : '';
   }
 
@@ -106,7 +106,7 @@ export class PlayerList {
     this.menu.classList.add('hidden');
     this.sticky = false;
     this.setShown(false);
-    if (relock && ctx.phase === 'playing' && !isTouchDevice() && !ctx.ui.modalOpen()) ctx.input.requestLock();
+    if (relock && ctx.phase === 'playing' && !ctx.ui.modalOpen()) ctx.input.requestLock();
   }
 
   setShown(v) {
@@ -118,12 +118,6 @@ export class PlayerList {
       this.cx = window.innerWidth / 2;
       this.cy = window.innerHeight / 2;
     } else this.vcursor.classList.add('hidden');
-  }
-
-  /** Mobil: liste düğmesi */
-  toggleTouch() {
-    this.sticky = !this.sticky;
-    this.setShown(this.sticky);
   }
 
   update(dt) {
