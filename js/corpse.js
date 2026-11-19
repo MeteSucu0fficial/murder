@@ -38,6 +38,9 @@ export class CorpseManager {
     const view = new RagdollView(color, { skin: skinTone(id) }); // yaşarken olduğu ten rengi (açık / kahverengi)
     view.setFace(ctx.players?.get(id)?.identity?.face); // ve yüzü
     ctx.sceneMgr.actorGroup.add(view.group);
+    // Ölü oyuncunun "boşluk" görünümünde (movement.js → scene.js setVoid) yalnızca bu katmandaki nesneler çizilir: cesetler.
+    const VL = GAME_CONFIG.deadView.layer;
+    view.group.traverse((o) => o.layers.enable(VL));
     const c = {
       id,
       color,

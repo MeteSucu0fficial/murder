@@ -5,10 +5,12 @@ import * as THREE from 'three';
 import { GAME_CONFIG, KEYS } from './config.js';
 import { ctx } from './context.js';
 import { clamp, damp } from './util.js';
+import { MOUSE_LEFT, MOUSE_RIGHT } from './input.js';
 
 const P = GAME_CONFIG.player;
 const C = GAME_CONFIG.camera;
 const LD = GAME_CONFIG.ladder;
+const DV = GAME_CONFIG.deadView;
 const _t = new THREE.Vector3();
 const _dir = new THREE.Vector3();
 const _f = new THREE.Vector3();
@@ -33,6 +35,16 @@ export class Movement {
     this.eyeH = P.eyeHeight; // yumuşatılmış göz yüksekliği (eğilince alçalır)
     this.climb = null; // merdivende: { ladder } (yoksa null)
     this.ladderCd = 0; // merdiveni bıraktıktan sonra tekrar tutunmadan önce bekleme (sn)
+    this.airLift = false; // havada eğilince ayaklar yukarı çekildi (konum airCrouchLift kadar yükseldi)
+    // Ölü oyuncu: BOŞLUK görünümü (siyah arka plan, yalnızca cesetler, üçüncü şahıs). voidView=false → izlenen oyuncunun gözünden birinci şahıs.
+    this.voidView = false;
+    this.voidInit = false; // bu ölüm için görünüm kuruldu mu (canlanınca / yeni turda sıfırlanır)
+    this.voidT = 0; // son görünüm değişiminden beri geçen süre (yanlışlıkla tıklamayı yoksaymak için)
+    this.voidYaw = 0;
+    this.voidPitch = -0.4;
+    this.voidDist = DV.distance;
+    this.voidCorpse = null; // odaktaki cesedin oyuncu kimliği
+    this.voidFocus = new THREE.Vector3();
     ctx.sceneMgr.camera.rotation.order = 'YXZ';
   }
 
@@ -49,6 +61,7 @@ export class Movement {
     this.eyeH = P.eyeHeight;
     this.climb = null;
     this.ladderCd = 0;
+    this.airLift = false;
     if (yaw !== null) {
       this.yaw = yaw;
       this.bodyYaw = yaw;
@@ -63,9 +76,15 @@ export class Movement {
   update(dt) {
     const me = ctx.me;
     const live = ctx.phase === 'playing' || ctx.phase === 'ended';
+    const dead = !!(live && me && !me.alive);
     if (live && me && me.alive) this._alive(dt, me);
-    else if (live && me && !me.alive) this._spectate(dt, me);
+    else if (dead) this._spectate(dt, me);
     else this._orbit(dt);
+    if (!dead) {
+      this.voidInit = false; // canlandım / tur bitti: bir sonraki ölümde boşluk görünümü yeniden kurulur
+      this.voidView = false;
+    }
+    ctx.sceneMgr.setVoid(dead && this.voidView);
     this._hideViewedBody(live, me);
   }
 
@@ -81,6 +100,7 @@ export class Movement {
     const me = ctx.me;
     if (!me) return null;
     if (me.alive) return me;
+    if (this.voidView) return null; // boşluk görünümünde kimsenin gözünden bakılmaz
     const t = this.spectateId ? ctx.players.get(this.spectateId) : null;
     return t && t.alive ? t : null;
   }
@@ -99,7 +119,7 @@ export class Movement {
     const look = input.consumeLook();
     if (ctx.grab.rotating) ctx.grab.rotateBy(look.x, look.y);
     else {
-      const s = C.sensitivity * ctx.settings.sensitivity;
+      const s = C.sensitivity * ctx.settings.sensitivity * Math.sqrt(ctx.sceneMgr?.zoomK ?? 1); // sniper dürbünü açıkken yavaşlar
       this.yaw -= look.x * s;
       this.pitch = clamp(this.pitch - look.y * s, C.minPitch, C.maxPitch);
     }
@@ -113,8 +133,33 @@ export class Movement {
     }
 
     // Eğilme: Ctrl basılıyken eğilir; bırakınca ancak üstü boşsa (tavan yoksa) kalkar.
-    if (!frozen && !me.carrying && input.isDown(KEYS.crouch)) this.crouching = true;
-    else if (this.crouching && col.canStand(me.pos, P.radius, P.crouchHeight, P.height)) this.crouching = false;
+    // HAVADA eğilme (CS tarzı): gövde / kamera aşağı inmez, BACAKLAR yukarı çekilir → ayak konumu airCrouchLift kadar yükselir, kamera sabit kalır.
+    if (this.grounded) this.airLift = false; // yere indim: normal eğilme (ayaklar zaten zeminde)
+    const lift = P.airCrouchLift || 0;
+    if (!frozen && !me.carrying && input.isDown(KEYS.crouch)) {
+      if (!this.crouching && !this.grounded && (this._airT || 0) > 0.08 && !this.climb && lift > 0) { // basamak / eğimde kısa kopmalar havada sayılmaz
+        me.pos.y += lift; // yeni (kısa) kapsül eski kapsülün içinde kalır: duvara girme riski yok
+        this.eyeH = Math.max(P.crouchEyeHeight, this.eyeH - lift); // kameranın mutlak yüksekliği değişmesin
+        this.airLift = true;
+      }
+      this.crouching = true;
+    } else if (this.crouching) {
+      if (this.airLift && !this.grounded) {
+        // havada kalkıyorum: ayaklar eski yerine inecek; orada (ayak altı) boş değilse eğilmeye devam
+        _t.set(me.pos.x, me.pos.y - lift, me.pos.z);
+        _dir.copy(_t);
+        col._resolveCapsule(_t, P.radius, P.height, P.walkableY);
+        if (_t.distanceToSquared(_dir) < 1e-4) {
+          me.pos.y -= lift;
+          this.eyeH = Math.min(P.eyeHeight, this.eyeH + lift);
+          this.crouching = false;
+          this.airLift = false;
+        }
+      } else if (col.canStand(me.pos, P.radius, P.crouchHeight, P.height)) {
+        this.crouching = false;
+        this.airLift = false;
+      }
+    }
     const height = this.crouching ? P.crouchHeight : P.height;
     this.eyeH = damp(this.eyeH, this.crouching ? P.crouchEyeHeight : P.eyeHeight, P.crouchBlend, dt);
     me.crouch = this.crouching;
@@ -183,11 +228,13 @@ export class Movement {
 
     // Oyuncular birbirinin içinden GEÇEMEZ (sert çarpışma) — turun ilk `ghostSeconds` saniyesi hariç.
     // Üst üste doğmuş oyuncular kare başına en fazla `separationStep` metre itilerek ayrılır (ışınlanma / titreme olmasın).
-    if (!this._ghost()) {
+    // UMACI: yeteneği açıkken (ya da karşıdaki Umacı iken) oyuncuların içinden geçilir.
+    const cloaked = ctx.phase === 'playing' && (ctx.me_state?.umaciLeft || 0) > 0;
+    if (!this._ghost() && !cloaked) {
       let pushed = false;
       const min = P.radius * 2;
       for (const o of ctx.players.map.values()) {
-        if (o === me || !o.alive || Math.abs(me.pos.y - o.pos.y) > P.height * 0.9) continue;
+        if (o === me || !o.alive || o.umaci || Math.abs(me.pos.y - o.pos.y) > P.height * 0.9) continue;
         let dx = me.pos.x - o.pos.x;
         let dz = me.pos.z - o.pos.z;
         let d = Math.hypot(dx, dz);
@@ -254,6 +301,7 @@ export class Movement {
     this.grounded = false;
     this.climb = null;
     this.crouching = false;
+    this.airLift = false;
     this.eyeH = damp(this.eyeH, P.eyeHeight, P.crouchBlend, dt);
     me.crouch = false;
     me.eyeH = this.eyeH;
@@ -273,8 +321,11 @@ export class Movement {
    * Merdiven tırmanma (yalnızca yerel oyuncu). Bu karede tırmanıyorsam true döner ve hızı this.vel'e yazar.
    * Başlama: merdivene DEĞİYORSAN (kapsül kutuya touchMargin kadar yakın), merdivene DÖNÜKSEN (faceDot), W / Boşluk / ileri çubuğa BASIYORSAN
    *   ve ayakların tepenin topMargin altındaysa (platformun / üst katın ÜSTÜNDEYKEN tutunmaz: kenardan merdivene doğru yürü / düş, havada yakalarsın).
-   * Tırmanırken: W / Boşluk yukarı, S aşağı, A / D yana (yavaş), hiçbiri = asılı kal. Ctrl, donma, ceset taşıma ya da temas kaybı bırakır.
-   * Tepeye gelince (ayaklar tepenin topMargin altına çıkınca) W / Boşluk ile merdivene doğru küçük bir sıçrama yapıp üste çıkarsın.
+   *   Yerdeyken aşağı bakarak W'ye basmak tutunmaz (zaten inecek yer yok): normal yürürsün.
+   * Tırmanırken YÖN BAKIŞA GÖRE: W (ileri) bakılan yöne gider → düz / yukarı bakarken yukarı, belirgin biçimde aşağı bakarken (downPitch) aşağı;
+   *   S (geri) tersi; Boşluk her zaman yukarı; hiçbiri = asılı kal. Hareket yalnızca dikeydir (yükselir / alçalır); A / D yana (yavaş) kayma aynen kalır.
+   *   Ctrl, donma, ceset taşıma ya da temas kaybı bırakır.
+   * Tepeye gelince (ayaklar tepenin topMargin altına çıkınca) yukarı giderken merdivene doğru küçük bir sıçrama yapıp üste çıkarsın.
    * Zemine inince tırmanma biter (_alive içinde, hareketten sonra).
    */
   _ladder(dt, me, mv, height, blocked) {
@@ -284,13 +335,18 @@ export class Movement {
       this.climb = null;
       return false;
     }
-    const up = mv.y > 0.3 || ctx.input.isDown(KEYS.jump);
-    const down = mv.y < -0.3;
+    // Dikey yön (+1 yukarı, -1 aşağı, 0 asılı): ileri / geri bakışa göre, Boşluk her zaman yukarı.
+    const lookDown = this.pitch < -LD.downPitch;
+    const fwd = mv.y > 0.3;
+    const back = mv.y < -0.3;
+    const jumpKey = ctx.input.isDown(KEYS.jump);
+    const dir = clamp((fwd ? (lookDown ? -1 : 1) : 0) + (back ? (lookDown ? 1 : -1) : 0) + (jumpKey ? 1 : 0), -1, 1);
     // Merdivenle aramda duvar varsa (duvarın öbür yanındaki merdivene) tutunulmaz / tırmanma bırakılır.
     const behindWall = (h) => !h.flat && ctx.world.collision.blocked(_t.set(me.pos.x, me.pos.y + height * 0.5, me.pos.z), _dir.set(h.px, h.py, h.pz), 0.15);
 
     if (!this.climb) {
-      if (blocked || this.crouching || this.ladderCd > 0 || !up) return false;
+      if (blocked || this.crouching || this.ladderCd > 0 || !(fwd || jumpKey)) return false;
+      if (this.grounded && dir < 0) return false; // yerdeyken aşağı bakıp ilerlemek tutunma değildir
       const hit = sys.touch(me.pos, P.radius, height, LD.touchMargin);
       if (!hit || behindWall(hit)) return false;
       if (me.pos.y >= hit.top - LD.topMargin) return false; // tepede / platformun üstünde: tutunma (üstte asılı kalıp içeri sıkışmasın)
@@ -311,8 +367,8 @@ export class Movement {
     }
     this.climb.ladder = hit.ladder;
 
-    const vy = (up ? LD.speed : 0) - (down ? LD.speed : 0);
-    if (up && !down && me.pos.y >= hit.top - LD.topMargin) {
+    const vy = dir * LD.speed;
+    if (dir > 0 && me.pos.y >= hit.top - LD.topMargin) {
       // tepe: merdivene (platforma / üst kata) doğru sıçra ve bırak
       this.vel.set(hit.flat ? Math.sin(this.yaw) * LD.exitSpeed : hit.nx * LD.exitSpeed, LD.exitUp, hit.flat ? Math.cos(this.yaw) * LD.exitSpeed : hit.nz * LD.exitSpeed);
       this.climb = null;
@@ -321,37 +377,131 @@ export class Movement {
       return false;
     }
 
-    // yana kayma (kamera yönüne göre) + merdivene hafif çekim (kutuya zaten yakınsan çekme: içine girmesin)
+    // yana kayma (kamera yönüne göre) + merdivene yaslanma. Çekim YALNIZCA merdivenin ince (yüz) ekseni boyunca olur; yana çekim YOKTUR
+    // (eskiden en yakın kutu noktasına çekilirdi → tırmanırken oyuncu merdivenin ortasına doğru "ortalanıyordu").
     let vx = -Math.cos(this.yaw) * mv.x * LD.strafeSpeed;
     let vz = Math.sin(this.yaw) * mv.x * LD.strafeSpeed;
-    if (!hit.flat && hit.h > 0.12) {
-      vx += hit.nx * LD.stick;
-      vz += hit.nz * LD.stick;
+    const wn = hit.ladder.wn;
+    if (!hit.flat && wn && hit.h > 0.12) {
+      const dp = hit.nx * wn.x + hit.nz * wn.z; // çekim yönünün ince eksendeki bileşeni
+      if (Math.abs(dp) > 0.25) {
+        const sg = Math.sign(dp) * LD.stick;
+        vx += wn.x * sg;
+        vz += wn.z * sg;
+      }
     }
     this.vel.set(vx, vy, vz);
     return true;
   }
 
   // ------------------------------------------------------------------ ölü oyuncu (izleyici)
+  /**
+   * Ölünce iki görünüm vardır:
+   *  • BOŞLUK (başlangıç): siyah arka plan, harita / oyuncular görünmez, yalnızca ragdoll cesetler; üçüncü şahıs, cesedin etrafında dönersin.
+   *    Fare: dön · tekerlek: yakınlaş · ← / →: ceset değiştir · herhangi bir tıklama: birinci şahıs izlemeye geç (GERİ DÖNÜŞ YOK, tek yönlü).
+   *  • BİRİNCİ ŞAHIS İZLEME: hayattaki bir oyuncunun gözünden · SOL TIK / →: sonraki oyuncu · SAĞ TIK / ←: önceki oyuncu.
+   *    Boşluğa yalnızca izlenecek hayatta kimse kalmazsa otomatik dönülür (tıklayıp geri dönülemez).
+   */
   _spectate(dt, me) {
     const input = ctx.input;
+    if (!this.voidInit) this._voidStart(me);
+    this.voidT += dt;
     const look = input.consumeLook();
-    if (input.wasPressed(KEYS.prevSpectate)) this.cycleSpectate(-1);
-    if (input.wasPressed(KEYS.nextSpectate)) this.cycleSpectate(1);
-    const target = this.viewedPlayer();
-    if (!target) {
-      // izlenecek kimse yok: öldüğüm yerden serbestçe etrafa bakarım (hayalet bakışı)
+    let prev = input.wasPressed(KEYS.prevSpectate);
+    let next = input.wasPressed(KEYS.nextSpectate);
+    const clickL = input.wasPressed(MOUSE_LEFT);
+    const clickR = input.wasPressed(MOUSE_RIGHT);
+    let entered = false;
+    if (this.voidView) {
+      // boşlukta herhangi bir tık: oyuncuları izlemeye geç (ölümden hemen sonra yanlışlıkla tıklamaya karşı clickDelay)
+      if ((clickL || clickR) && this.voidT > DV.clickDelay) entered = this.startSpectating();
+    } else if (this.voidT > DV.cycleDelay) {
+      // izlerken: sol tık = sonraki, sağ tık = önceki oyuncu (ok tuşları da çalışır)
+      if (clickL) next = true;
+      else if (clickR) prev = true;
+    }
+    if (!this.voidView) {
+      if (!entered) {
+        if (prev) this.cycleSpectate(-1);
+        if (next) this.cycleSpectate(1);
+      }
+      const target = this.viewedPlayer();
+      if (target) {
+        // izlenen oyuncunun gözünden bak: onun baktığı yöne döneriz (fare ile serbest bakış yok)
+        this.yaw = target.yaw;
+        this.pitch = target.pitch;
+        this._rig(dt, target.pos, target.yaw, target.pitch, target.speed || 0, target.eyeH || P.eyeHeight);
+        return;
+      }
+      // izlenecek kimse kalmadı: boşluk görünümüne dön
+      this.voidView = true;
+      this.voidT = 0;
       this.spectateId = null;
-      const s = C.sensitivity * ctx.settings.sensitivity;
-      this.yaw -= look.x * s;
-      this.pitch = clamp(this.pitch - look.y * s, C.minPitch, C.maxPitch);
-      this._rig(dt, me.pos, this.yaw, this.pitch, 0, P.eyeHeight);
+    } else {
+      if (prev) this.cycleCorpse(-1);
+      if (next) this.cycleCorpse(1);
+    }
+    this._voidCam(dt, me, look);
+  }
+
+  /** Ölümden sonra ilk kare: boşluk görünümünü kur (kendi cesedim odakta, ölürken baktığım yöne bakarak). */
+  _voidStart(me) {
+    this.voidInit = true;
+    this.voidView = true;
+    this.voidT = 0;
+    this.voidYaw = this.yaw;
+    this.voidPitch = -0.4;
+    this.voidDist = DV.distance;
+    this.voidCorpse = me.id;
+    this.voidFocus.set(me.pos.x, me.pos.y + 0.9, me.pos.z);
+    this.spectateId = null;
+  }
+
+  /** Boşluk → birinci şahıs izleme (tıklama / dokunma). TEK YÖNLÜ: geri dönüş yok. İzlenecek hayatta kimse yoksa boşlukta kalınır (false). */
+  startSpectating() {
+    if (!ctx.players.all().some((p) => p.alive && p !== ctx.me)) return false;
+    this.voidT = 0;
+    this.voidView = false;
+    this.spectateId = null;
+    this.cycleSpectate(1); // ilk hayattaki oyuncu
+    return true;
+  }
+
+  /** Boşluk görünümünde odaktaki cesedi değiştir. */
+  cycleCorpse(dir) {
+    const ids = [...(ctx.corpses?.map.keys() || [])];
+    if (!ids.length) {
+      this.voidCorpse = null;
       return;
     }
-    // izlenen oyuncunun gözünden bak: onun baktığı yöne döneriz (fare ile serbest bakış yok)
-    this.yaw = target.yaw;
-    this.pitch = target.pitch;
-    this._rig(dt, target.pos, target.yaw, target.pitch, target.speed || 0, target.eyeH || P.eyeHeight);
+    const i = ids.indexOf(this.voidCorpse);
+    this.voidCorpse = ids[(i + dir + ids.length * 2) % ids.length];
+  }
+
+  /** Üçüncü şahıs "boşluk" kamerası: odak (ceset merkezi) etrafında döner; fare = dönüş, tekerlek = uzaklık. */
+  _voidCam(dt, me, look) {
+    const input = ctx.input;
+    const s = C.sensitivity * ctx.settings.sensitivity;
+    this.voidYaw -= look.x * s;
+    this.voidPitch = clamp(this.voidPitch - look.y * s, DV.minPitch, DV.maxPitch);
+    const wheel = input.consumeWheel();
+    if (wheel) this.voidDist = clamp(this.voidDist + wheel * 0.6, DV.minDistance, DV.maxDistance);
+    let c = ctx.corpses?.map.get(this.voidCorpse);
+    if (!c) {
+      c = ctx.corpses?.map.values().next().value; // kendi cesedim yoksa (ya da silindiyse) ilk ceset
+      this.voidCorpse = c ? c.id : null;
+    }
+    if (c) _t.set(c.view.center.x, c.view.center.y + DV.height, c.view.center.z);
+    else _t.set(me.pos.x, me.pos.y + 0.9, me.pos.z);
+    this.voidFocus.lerp(_t, 1 - Math.exp(-DV.follow * dt));
+    const cp = Math.cos(this.voidPitch);
+    this.lookDir.set(Math.sin(this.voidYaw) * cp, Math.sin(this.voidPitch), Math.cos(this.voidYaw) * cp);
+    const cam = ctx.sceneMgr.camera;
+    cam.position.copy(this.voidFocus).addScaledVector(this.lookDir, -this.voidDist);
+    cam.rotation.set(this.voidPitch, this.voidYaw + Math.PI, 0);
+    this.eye.copy(cam.position);
+    this.yaw = this.voidYaw;
+    this.pitch = this.voidPitch;
   }
 
   cycleSpectate(dir) {

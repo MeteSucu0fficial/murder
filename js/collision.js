@@ -4,7 +4,9 @@
 //    Böylece bu nesneler için ayrıca collision modeli gerekmez; kendi şekilleri engel olur.
 //    Blender'da ölçeği UYGULANMAMIŞ (S ile çekilmiş, x/y/z farklı ölçekli) nesneler de doğru çalışır: ölçek BVH'ye işlenir,
 //    dönüşüm yalnızca konum + dönüş olur (eskiden kapsül yarıçapı en büyük ölçeğe bölünüyordu: ince duvar / tablo / kapıdan geçilirdi).
-//  - Oyuncu: DİKEY KAPSÜL (yarıçap + yükseklik) — adım çıkma + zemine yapışma ile merdiven / basamak desteği.
+//  - Oyuncu: DİKEY SİLİNDİR (yarıçap + yükseklik) — adım çıkma + zemine yapışma ile merdiven / basamak desteği.
+//    Silindir = kapsül çözücünün dikeyde yassıltılmış hâli: üçgenler y ekseninde capFlat kat büyütülüp aynı kapsül sorgusu çalıştırılır
+//    (yuvarlak uçlar düz taban / tavana yaklaşır; capFlat = 1 → eski kapsül). Dinamik parçalar (kapı / kafes) klasik kapsülle kalır.
 //    Sağlamlık katmanları (hepsi config.js → GAME_CONFIG.collision ile ayarlanır):
 //      1) pierceTriangle: kapsül ekseni bir yüzeyin İÇİNDEN geçmişse (kütüphanenin en yakın nokta hesabı bunu görmez) doğru yana çıkarılır.
 //      2) Yürürken: basamak payı tavan varsa kısalır; zemine küçük adımlarla inilir (eksen zeminin içine HİÇ girmez).
@@ -12,7 +14,7 @@
 //      4) Alt adımlar küçüktür (≤ yarıçapın yarısı): hızlı hareket ince duvarı atlayamaz.
 //  - Küre: eşyalar ve fırlatılan bıçak için.
 import * as THREE from 'three';
-import { MeshBVH } from 'three-mesh-bvh';
+import { ExtendedTriangle, MeshBVH } from 'three-mesh-bvh';
 import { GAME_CONFIG } from './config.js';
 
 const CC = GAME_CONFIG.collision;
@@ -46,6 +48,33 @@ const _dscl = new THREE.Vector3();
 const ONE = new THREE.Vector3(1, 1, 1);
 const UP = new THREE.Vector3(0, 1, 0);
 const DOWN = new THREE.Vector3(0, -1, 0);
+const _stri = new ExtendedTriangle(); // silindir modu: shapecast üçgeninin dikeyde (y × sy) ölçeklenmiş kopyası
+const _spt = new THREE.Vector3();
+
+// ---------------------------------------------------------------------------------------------------------------------
+//  SİLİNDİR modu (config.js → collision.capFlat). Oyuncu hâlâ "kapsül" algoritmasıyla çözülür, ama dünya DİKEYDE capFlat kat
+//  büyütülmüş uzayda (y × sy): ölçekli uzayda yarıçapı r olan küre uç, gerçek uzayda dikey yarıçapı r / sy olan yassı uç demektir →
+//  gövde düz tabanlı / düz tavanlı SİLİNDİR gibi davranır (kenarda durabilir, tavana tam yüksekliğinde değer; kapsül gibi kayıp düşmez).
+//  Yalnızca statik dünya böyledir; hareketli nesneler (kapı, kafes...) klasik kapsülle çözülür. capFlat ≤ 1 → klasik kapsül.
+// ---------------------------------------------------------------------------------------------------------------------
+function flatScale() {
+  const f = CC.capFlat;
+  return f > 1 ? f : 1;
+}
+/** Gerçek uzay üçgeni → ölçekli uzay üçgeni (ortak _stri; her çağrıda üzerine yazılır). */
+function scaleTri(tri, sy) {
+  _stri.a.set(tri.a.x, tri.a.y * sy, tri.a.z);
+  _stri.b.set(tri.b.x, tri.b.y * sy, tri.b.z);
+  _stri.c.set(tri.c.x, tri.c.y * sy, tri.c.z);
+  _stri.needsUpdate = true;
+  return _stri;
+}
+/** "Yürünebilir zemin" eşiği (yüzey normali y bileşeni) ölçekli uzayda: gerçek eşik walkY ise eğim sy kat dikleşir → 1/√(1 + sy²·tan²θ). */
+function scaledWalkY(walkY, sy) {
+  if (sy === 1 || !(walkY > 0) || walkY >= 1) return walkY;
+  const t2 = (1 - walkY * walkY) / (walkY * walkY);
+  return 1 / Math.sqrt(1 + sy * sy * t2);
+}
 
 // ---------------------------------------------------------------------------------------------------------------------
 //  Dinamik nesne geometrisi: ölçek BVH'ye işlenir (geometri başına + ölçek başına bir kez)
@@ -142,16 +171,22 @@ function pierceTriangle(tri, seg, radius, walkY) {
  * kapsül YALNIZCA YUKARI itilir. Böylece eğimli zeminde ve basamak kenarında yana KAYMA olmaz; merdiven / rampa rahatça çıkılır.
  * Duvar, tavan ve dik yüzeylerde itme temas normali boyuncadır (duvara yaslanıp kayarak ilerleme korunur).
  */
-function pushSegment(bvh, seg, radius, walkY = 0) {
+function pushSegment(bvh, seg, radius, walkY = 0, sy = 1) {
+  // sy > 1 (silindir modu): seg ve walkY ölçekli uzaydadır (y × sy); BVH gerçek uzaydadır → kutu geri ölçeklenir, üçgenler ölçeklenir.
   _lbox.makeEmpty();
   _lbox.expandByPoint(seg.start);
   _lbox.expandByPoint(seg.end);
   _lbox.min.addScalar(-radius);
   _lbox.max.addScalar(radius);
+  if (sy !== 1) {
+    _lbox.min.y /= sy;
+    _lbox.max.y /= sy;
+  }
   let moved = false;
   bvh.shapecast({
     intersectsBounds: (b) => b.intersectsBox(_lbox),
-    intersectsTriangle: (tri) => {
+    intersectsTriangle: (rawTri) => {
+      const tri = sy === 1 ? rawTri : scaleTri(rawTri, sy);
       if (pierceTriangle(tri, seg, radius, walkY)) {
         moved = true;
         return;
@@ -317,13 +352,27 @@ export class CollisionWorld {
   /** pos: ayak konumu. Dünyaya karşı çözümler; pos yerinde güncellenir. Toplam itmeyi _push'ta bırakır. */
   _resolveCapsule(pos, radius, height, walkY = 0) {
     _start.copy(pos);
+    const sy = flatScale();
+    const wy = scaledWalkY(walkY, sy);
     for (let iter = 0; iter < CC.iterations; iter++) {
-      _seg.start.set(pos.x, pos.y + radius, pos.z);
-      _seg.end.set(pos.x, pos.y + height - radius, pos.z);
-      const before = _o.copy(_seg.start);
+      const before = _o.copy(pos);
       let moved = false;
-      if (this.staticBvh) moved = pushSegment(this.staticBvh, _seg, radius, walkY) || moved;
+      // statik dünya: ölçekli uzayda (sy = 1 → klasik kapsül · sy > 1 → gerçek uzayda yassı uçlu silindir)
+      if (this.staticBvh) {
+        _seg.start.set(pos.x, pos.y * sy + radius, pos.z);
+        _seg.end.set(pos.x, (pos.y + height) * sy - radius, pos.z);
+        if (pushSegment(this.staticBvh, _seg, radius, wy, sy)) {
+          pos.x = _seg.start.x;
+          pos.y = (_seg.start.y - radius) / sy;
+          pos.z = _seg.start.z;
+          moved = true;
+        }
+      }
+      // hareketli nesneler (kapı, kafes, tablo): klasik kapsül
       if (this.dynamic.size) {
+        _seg.start.set(pos.x, pos.y + radius, pos.z);
+        _seg.end.set(pos.x, pos.y + height - radius, pos.z);
+        let dyn = false;
         _box.makeEmpty();
         _box.expandByPoint(_seg.start);
         _box.expandByPoint(_seg.end);
@@ -338,16 +387,18 @@ export class CollisionWorld {
             if (pushSegment(part.bvh, _lseg, radius, 0)) { // dinamik nesne yerel uzayda döner: dikey kuralı yalnızca statik dünyada
               _seg.start.copy(_lseg.start).applyMatrix4(part.rigid);
               _seg.end.copy(_lseg.end).applyMatrix4(part.rigid);
-              moved = true;
+              dyn = true;
             }
           }
         }
+        if (dyn) {
+          pos.x = _seg.start.x;
+          pos.y = _seg.start.y - radius;
+          pos.z = _seg.start.z;
+          moved = true;
+        }
       }
-      if (!moved) break;
-      pos.x = _seg.start.x;
-      pos.y = _seg.start.y - radius;
-      pos.z = _seg.start.z;
-      if (before.distanceToSquared(_seg.start) < 1e-8) break;
+      if (!moved || before.distanceToSquared(pos) < 1e-8) break;
     }
     _push.subVectors(pos, _start);
     return _push;
@@ -446,13 +497,14 @@ export class CollisionWorld {
 
   /** Kapsülün (ayak konumu x,y,z) üstünde `want` metreye kadar boşluk: tavan varsa üst kürenin tavana değmeyeceği kadarı. */
   _headroom(x, y, z, radius, height, want) {
-    const top = y + height - radius; // üst küre merkezi
+    const cv = radius / flatScale(); // dikey uç yarıçapı (silindir modunda küçüktür: gövde tavana neredeyse tam yüksekliğiyle değer)
+    const top = y + height - cv; // üst uç merkezi
     const k = radius * 0.7;
     let free = want;
     for (let i = 0; i < 3 && free > 0; i++) {
       _o.set(x + (i === 1 ? k : i === 2 ? -k : 0), top, z);
-      const hit = this.raycast(_o, UP, want + radius);
-      if (hit) free = Math.min(free, Math.max(0, hit.distance - radius));
+      const hit = this.raycast(_o, UP, want + cv);
+      if (hit) free = Math.min(free, Math.max(0, hit.distance - cv));
     }
     return free;
   }
@@ -464,8 +516,9 @@ export class CollisionWorld {
     if (len < 1e-4) return false;
     _d.divideScalar(len);
     _ray.direction.copy(_d);
+    const cv = radius / flatScale(); // dikey uç yarıçapı
     for (let i = 0; i < 3; i++) {
-      _ray.origin.set(ox, oy + (i === 0 ? radius : i === 1 ? height * 0.5 : height - radius), oz);
+      _ray.origin.set(ox, oy + (i === 0 ? cv : i === 1 ? height * 0.5 : height - cv), oz);
       if (this.staticBvh.raycastFirst(_ray, THREE.DoubleSide, 0, len)) return true;
     }
     return false;
@@ -473,13 +526,32 @@ export class CollisionWorld {
 
   /** Kapsül ekseninin bir noktası statik bir yüzeye yarıçapın yarısından yakınsa true (geçerli bir duruş ≥ yarıçap uzakta olur). */
   _embedded(pos, radius, height) {
+    const sy = flatScale();
     const thr = radius * 0.5;
+    const cv = radius / sy; // dikey uç yarıçapı
     for (let i = 0; i < 3; i++) {
-      _o.set(pos.x, pos.y + (i === 0 ? radius : i === 1 ? height * 0.5 : height - radius), pos.z);
-      const r = this.staticBvh.closestPointToPoint(_o, _hitInfo, 0, thr);
-      if (r && r.distance < thr) return true;
+      const y = pos.y + (i === 0 ? cv : i === 1 ? height * 0.5 : height - cv);
+      if (sy === 1) {
+        _o.set(pos.x, y, pos.z);
+        const r = this.staticBvh.closestPointToPoint(_o, _hitInfo, 0, thr);
+        if (r && r.distance < thr) return true;
+      } else if (this._nearScaled(pos.x, y, pos.z, thr, sy)) return true;
     }
     return false;
+  }
+
+  /** Silindir modu: (x,y,z) noktası statik bir yüzeye ÖLÇEKLİ uzayda (y × sy) thr'den yakın mı? */
+  _nearScaled(x, y, z, thr, sy) {
+    _spt.set(x, y * sy, z);
+    _lbox.min.set(x - thr, y - thr / sy, z - thr);
+    _lbox.max.set(x + thr, y + thr / sy, z + thr);
+    return !!this.staticBvh.shapecast({
+      intersectsBounds: (b) => b.intersectsBox(_lbox),
+      intersectsTriangle: (tri) => {
+        scaleTri(tri, sy).closestPointToPoint(_spt, _tp);
+        return _tp.distanceTo(_spt) < thr; // true → tarama durur
+      },
+    });
   }
 
   /**
@@ -488,6 +560,32 @@ export class CollisionWorld {
    */
   canStand(pos, radius, crouchHeight, standHeight) {
     const r = Math.max(0.05, radius - 0.03);
+    const sy = flatScale();
+    const test = (bvh, seg, rad, box) =>
+      bvh.shapecast({
+        intersectsBounds: (b) => b.intersectsBox(box),
+        intersectsTriangle: (tri) => tri.closestPointToSegment(seg, _tp, _cp) < rad, // true → tarama durur
+      });
+    if (this.staticBvh) {
+      // statik dünya: ölçekli uzayda (silindir modu; sy = 1 → klasik)
+      _seg.start.set(pos.x, (pos.y + crouchHeight) * sy - radius, pos.z);
+      _seg.end.set(pos.x, (pos.y + standHeight) * sy - radius, pos.z);
+      _lbox.makeEmpty();
+      _lbox.expandByPoint(_seg.start);
+      _lbox.expandByPoint(_seg.end);
+      _lbox.min.addScalar(-r);
+      _lbox.max.addScalar(r);
+      if (sy !== 1) {
+        _lbox.min.y /= sy;
+        _lbox.max.y /= sy;
+      }
+      const hitS = this.staticBvh.shapecast({
+        intersectsBounds: (b) => b.intersectsBox(_lbox),
+        intersectsTriangle: (tri) => (sy === 1 ? tri : scaleTri(tri, sy)).closestPointToSegment(_seg, _tp, _cp) < r,
+      });
+      if (hitS) return false;
+    }
+    // hareketli nesneler: klasik kapsül
     _seg.start.set(pos.x, pos.y + crouchHeight - radius, pos.z);
     _seg.end.set(pos.x, pos.y + standHeight - radius, pos.z);
     _lbox.makeEmpty();
@@ -495,12 +593,6 @@ export class CollisionWorld {
     _lbox.expandByPoint(_seg.end);
     _lbox.min.addScalar(-r);
     _lbox.max.addScalar(r);
-    const test = (bvh, seg, rad, box) =>
-      bvh.shapecast({
-        intersectsBounds: (b) => b.intersectsBox(box),
-        intersectsTriangle: (tri) => tri.closestPointToSegment(seg, _tp, _cp) < rad, // true → tarama durur
-      });
-    if (this.staticBvh && test(this.staticBvh, _seg, r, _lbox)) return false;
     for (const c of this.dynamic.values()) {
       if (!c.enabled) continue;
       _box.copy(_lbox);

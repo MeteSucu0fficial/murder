@@ -3,7 +3,7 @@
 import { GAME_CONFIG, KEYS } from './config.js';
 import { ctx } from './context.js';
 import { audio } from './audio.js';
-import { LOVER_MAX_PICK, MANDATORY_ROLES, ROLES, ROLE_MAX_PICK, ROLE_PRIORITY, SECONDARY, loverLimits, roleRanges } from './roles.js';
+import { MANDATORY_ROLES, ROLES, ROLE_MAX_PICK, ROLE_PRIORITY, SECONDARY, roleGroup, roleMaxPick, roleRanges } from './roles.js';
 import { LEVEL_NAMES } from './voice.js';
 import { buildFallbackHouse } from './fallbackHouse.js';
 import { isNight } from './lights.js';
@@ -11,13 +11,15 @@ import { DEBUG_ROLE_OPTIONS } from './debug.js';
 import { KEY_ACTIONS, actionLabel, keyLabel, resetKeys, setKey } from './keybinds.js';
 import { h, fmtTime, store, isBotId, colorCss } from './util.js';
 
-const ABILITY_NAMES = { sleepwalker: 'Uyurgezerlik', bomber: 'Kendini patlat', medium: 'Medyum bağlantısı', s2g: 'S2G (sik)' };
+/** Dokunmatikte rol açıklamalarındaki {tuş} yer tutucularının karşılığı (düğme adı). */
+const TOUCH_NAMES = { list: 'Liste düğmesi', equip: 'Çanta çubuğu', ability: 'Yetenek düğmesi', reload: 'Doldur düğmesi', interact: 'Etkileşim düğmesi', flashlight: 'Fener düğmesi' };
+const ABILITY_NAMES = { sleepwalker: 'Uyurgezerlik', bomber: 'Kendini patlat', medium: 'Medyum bağlantısı', s2g: 'S2G (sik)', umaci: 'Görünmezlik' };
 // Tuş atama sırasında atanamayacak tarayıcı / sistem tuşları
 const BLOCKED_KEYS = new Set(['F5', 'F11', 'F12', 'MetaLeft', 'MetaRight', 'OSLeft', 'OSRight', 'ContextMenu']);
 const CAUSE_NAMES = {
   knife: 'bıçakla', knifeThrow: 'fırlatılan bıçakla', rifle: 'taramalıyla', pistol: 'tabancayla', taser: 'elektroşokla',
   bomb: 'bombayla', execution: 'idam bölgesinde', lover: 'sevgilin öldüğü için', left: 'bağlantı kesildiği için', s2g: 'S2G ile',
-  rocket: 'roketatarla', plasma: 'plazma tüfeğiyle', debug: 'host tarafından',
+  rocket: 'roketatarla', plasma: 'plazma tüfeğiyle', sniper: 'sniper tüfeğiyle', debug: 'host tarafından',
 };
 const MODE_NAMES = { voice: 'Sesli mod', silent: 'Sessiz mod' };
 
@@ -440,13 +442,11 @@ export class UI {
     } else if (host) {
       const time = this.select([[0, 'Sınırsız'], [300, '5 dk'], [480, '8 dk'], [600, '10 dk'], [900, '15 dk'], [1200, '20 dk']], S.roundTime ?? GAME_CONFIG.rounds.roundTime);
       const dead = this.select([['dead', 'Yalnızca ölüler görsün'], ['all', 'Herkes görsün']], S.deadChat || 'dead');
-      // TrollHacks: misafirler konsola "TrollHacks.enabled = true;" yazıp F2 araçlarını kullanabilsin mi? (host kendi konsolundan hep açabilir)
-      const troll = this.select([['1', 'Misafirler açabilir'], ['0', 'Kapalı']], S.troll === false ? '0' : '1');
-      const apply = () => ctx.host.setSettings({ roundTime: Number(time.value), deadChat: dead.value, troll: troll.value !== '0' });
-      time.onchange = dead.onchange = troll.onchange = apply;
+      // (TrollHacks seçicisi lobiden kaldırıldı: izin host.js → settings.troll varsayılanıyla kalır; konsoldan TrollHacks.enabled = true; ile açılır.)
+      const apply = () => ctx.host.setSettings({ roundTime: Number(time.value), deadChat: dead.value });
+      time.onchange = dead.onchange = apply;
       this.lobbySettings.replaceChildren(
         h('div', { class: 'row2' }, this.field('Tur süresi', time), this.field('Ölü sohbeti', dead)),
-        h('div', { class: 'row2' }, this.field('TrollHacks (konsol)', troll)),
         this.roleSettings(S, true));
     } else {
       const t = S.roundTime === 0 ? 'sınırsız' : `${Math.round((S.roundTime ?? GAME_CONFIG.rounds.roundTime) / 60)} dk`;
@@ -493,11 +493,9 @@ export class UI {
     const fmt = ([a, b]) => (a === b ? `${a}` : `${a}–${b}`);
     const summary = Object.entries(roleRanges(n, cfg))
       .filter(([, rg]) => rg[1] > 0)
-      .map(([r, rg]) => `${ROLES[r].name} ${fmt(rg)}`)
+      .map(([r, rg]) => (roleGroup(r) > 1 ? `${ROLES[r].name} ${fmt(rg.map((x) => x / roleGroup(r)))} çift` : `${ROLES[r].name} ${fmt(rg)}`))
       .join(' · ');
-    const lv = loverLimits(n, cfg);
-    const loverText = lv[1] > 0 ? ` · Sevgili çifti ${fmt(lv)}` : ' · Sevgili yok';
-    const preview = h('p', { class: 'meta role-preview' }, `${n} oyuncu için roller: ${summary}${loverText}`);
+    const preview = h('p', { class: 'meta role-preview' }, `${n} oyuncu için roller: ${summary}`);
     if (!editable) return preview;
 
     const write = (r, v) => {
@@ -507,6 +505,8 @@ export class UI {
       ctx.host.setSettings({ roles: next });
     };
     const maxOptions = [['auto', 'Otomatik'], ...Array.from({ length: ROLE_MAX_PICK }, (_, i) => [i + 1, `Max ${i + 1}`])];
+    // çift halinde verilen roller (Aşık): seçenekler ÇİFT sayısıdır
+    const optionsOf = (r) => (roleGroup(r) > 1 ? [['auto', 'Otomatik'], ...Array.from({ length: roleMaxPick(r) }, (_, i) => [i + 1, `Max ${i + 1} çift`])] : maxOptions);
     const lockedBox = () => h('input', { type: 'checkbox', checked: true, disabled: true, title: 'Zorunlu rol: her turda vardır' });
     const killerRow = h('div', { class: 'rc-row' },
       h('label', { class: 'rc-name' }, lockedBox(), h('i', { class: 'rc-dot', style: { background: ROLES.killer.color } }), ROLES.killer.name),
@@ -515,39 +515,24 @@ export class UI {
       const v = cfg[r];
       const mandatory = MANDATORY_ROLES.includes(r);
       const off = !mandatory && (v === false || v === 0 || v === '0');
-      const cur = typeof v === 'number' && v >= 1 ? String(Math.min(ROLE_MAX_PICK, Math.floor(v))) : 'auto';
+      const cur = typeof v === 'number' && v >= 1 ? String(Math.min(roleMaxPick(r), Math.floor(v))) : 'auto';
       const on = h('input', { type: 'checkbox', title: 'Bu rol oyunda olsun' });
       on.checked = !off;
       on.disabled = mandatory; // zorunlu rol kapatılamaz
       if (mandatory) on.title = 'Zorunlu rol: her turda vardır';
-      const sel = this.select(maxOptions, cur);
+      const sel = this.select(optionsOf(r), cur);
       sel.classList.add('mini');
       sel.disabled = off;
       const val = () => (sel.value === 'auto' ? undefined : Number(sel.value));
       on.onchange = () => write(r, on.checked ? val() : 0);
       sel.onchange = () => write(r, val());
       return h('div', { class: `rc-row${off ? ' off' : ''}` },
-        h('label', { class: 'rc-name' }, on, h('i', { class: 'rc-dot', style: { background: ROLES[r].color } }), mandatory ? `${ROLES[r].name} (zorunlu)` : ROLES[r].name), sel);
-    }), (() => {
-      // Sevgililer (Aşık): masum takımdan iki kişiyi bağlar; biri ölürse diğeri de ölür. Seçenek = en çok kaç ÇİFT.
-      const v = cfg.lover;
-      const off = v === false || v === 0 || v === '0';
-      const cur = typeof v === 'number' && v >= 1 ? String(Math.min(LOVER_MAX_PICK, Math.floor(v))) : 'auto';
-      const on = h('input', { type: 'checkbox', title: 'Sevgililer oyunda olsun' });
-      on.checked = !off;
-      const sel = this.select([['auto', `Otomatik (${GAME_CONFIG.lovers.autoMinPlayers}+ oyuncu)`], ...Array.from({ length: LOVER_MAX_PICK }, (_, i) => [i + 1, `Max ${i + 1} çift`])], cur);
-      sel.classList.add('mini');
-      sel.disabled = off;
-      const val = () => (sel.value === 'auto' ? undefined : Number(sel.value));
-      on.onchange = () => write('lover', on.checked ? val() : 0);
-      sel.onchange = () => write('lover', val());
-      return h('div', { class: `rc-row${off ? ' off' : ''}` },
-        h('label', { class: 'rc-name' }, on, h('i', { class: 'rc-dot', style: { background: SECONDARY.lover.color } }), 'Sevgililer (Aşık)'), sel);
-    })()];
+        h('label', { class: 'rc-name' }, on, h('i', { class: 'rc-dot', style: { background: ROLES[r].color } }), mandatory ? `${ROLES[r].name} (zorunlu)` : roleGroup(r) > 1 ? `${ROLES[r].name} (çift)` : ROLES[r].name), sel);
+    })];
     const box = h('details', { class: 'role-cfg' },
       h('summary', {}, 'Rol ayarları'),
       h('div', { class: 'rc-grid' }, rows),
-      h('small', {}, `Katil ve Dedektif zorunludur: her turda mutlaka vardır (otomatik ayarda bile). Katil hep 1 kişidir. Kutu kapalıysa o rol oyunda yoktur. "Max N": rol her turda en az 1, en çok N kişiye rastgele verilir. "Otomatik": oyuncu sayısına göre sabit sayıdır (az oyuncuda 0 olabilir). "Sevgililer": masum takımdan iki kişiyi bağlar, biri ölürse diğeri de ölür; "Max N" en çok N çifttir. Oyuncu yetmezse öncelik sırası: ${ROLE_PRIORITY.map((r) => ROLES[r].name).join(', ')}.`),
+      h('small', {}, `Katil ve Dedektif zorunludur: her turda mutlaka vardır (otomatik ayarda bile). Katil hep 1 kişidir. Kutu kapalıysa o rol oyunda yoktur. "Max N": rol her turda en az 1, en çok N kişiye rastgele verilir. "Otomatik": oyuncu sayısına göre sabit sayıdır (az oyuncuda 0 olabilir). "Aşık": iki kişilik çift olarak verilir (kendi aralarında eşlenir, ikisi de masum takımdadır), biri ölürse diğeri de ölür; "Max N" en çok N çifttir. Oyuncu yetmezse öncelik sırası: ${ROLE_PRIORITY.map((r) => ROLES[r].name).join(', ')}.`),
       h('button', { type: 'button', class: 'btn small ghost', onclick: () => ctx.host.setSettings({ roles: {} }) }, 'Hepsini otomatik yap'));
     box.open = !!this.rolesOpen;
     box.addEventListener('toggle', () => { this.rolesOpen = box.open; });
@@ -590,7 +575,7 @@ export class UI {
     this.hudAlive = h('div', { class: 'hud-alive' });
     this.hudRoom = h('div', { class: 'hud-room' });
     this.hudName = h('div', { class: 'hud-name' }); // sol alt: herkese görünen adım (kendi renginde)
-    this.hudRoles = h('div', { class: 'hud-roles' }); // sağ alt: ana rol + ikincil roller (Baiter, Aşık)
+    this.hudRoles = h('div', { class: 'hud-roles' }); // sağ alt: ana rol + Baiter + sevgilim
     this.rolesSig = '';
     this.nameSig = '';
     this.progress = h('div', { class: 'hud-progress hidden' }, h('div', { class: 'hud-progress-fill' }));
@@ -604,8 +589,10 @@ export class UI {
     this.deadBar = h('div', { class: 'dead-bar hidden' });
     this.crosshair = h('div', { class: 'crosshair' });
     this.crosshairOn = false;
+    this.scope = h('div', { class: 'scope' }, h('i', { class: 'sc-h' }), h('i', { class: 'sc-v' }), h('i', { class: 'sc-dot' })); // sniper dürbünü çerçevesi
     this.lockHint = h('div', { class: 'lock-hint hidden' }, 'Oyuna girmek için ekrana tıkla (fare yakalanır)');
     this.hud = h('div', { class: 'hud hidden' },
+      this.scope,
       h('div', { class: 'hud-top' }, this.hudTimer, this.hudAlive),
       this.hudRoom,
       this.crosshair,
@@ -633,7 +620,7 @@ export class UI {
     else if (phase === 'ended') this.hudTimer.textContent = 'Tur bitti';
     else this.hudTimer.textContent = R.limit > 0 ? fmtTime(R.endsAt - now) : '∞';
     this.hudAlive.textContent = `Tur ${R.n}`; // hayatta kalan sayısı bilerek GÖSTERİLMEZ
-    const dbgKey = ctx.isHost ? ` · ${keyLabel(KEYS.debug)}: debug paneli` : '';
+    const dbgKey = ctx.isHost && !ctx.input.touchMode ? ` · ${keyLabel(KEYS.debug)}: debug paneli` : '';
     this.hudRoom.textContent = ctx.room?.settings?.debug
       ? `${ctx.net?.local ? 'Debug haritası' : `Oda ${ctx.room.code} · DEBUG`}${dbgKey}`
       : `Oda ${ctx.room?.code || ''} · ${MODE_NAMES[ctx.room?.mode] || ''}`;
@@ -659,31 +646,37 @@ export class UI {
     const type = ctx.inventory.heldType; // el: slot 2 → rol ekipmanı, slot 3+ → gizli eşya
     const roleType = ctx.inventory.equipType;
     let wtxt = '';
+    const T = !!ctx.input.touchMode; // dokunmatik: tuş adları yerine düğme etiketleri (touchButtons.js) kullanılır
     if (me.alive && type && ctx.inventory.slot >= 2) {
       const W = GAME_CONFIG.equipment[type];
-      if (type === 'knife') wtxt = s.knifeAway ? `Bıçak elinde değil — bakıp al (${keyLabel(KEYS.interact)}) ya da 2 dk bekle` : `${W.name} · Sol: vur · Sağ: fırlat`;
-      else if (type === 'bomb') wtxt = `${W.name} · Sol: kur (${W.fuse} sn sonra patlar)`;
+      if (type === 'knife') wtxt = s.knifeAway ? `Bıçak elinde değil — bakıp al${T ? '' : ` (${keyLabel(KEYS.interact)})`} ya da 2 dk bekle` : T ? W.name : `${W.name} · Sol: vur · Sağ: fırlat`;
+      else if (type === 'bomb') wtxt = `${W.name} · ${T ? 'ateş' : 'Sol'}: kur (${W.fuse} sn sonra patlar)`;
       else if (s.reload > 0) wtxt = `${W.name} · dolduruluyor ${s.reload.toFixed(1)} sn`;
-      else if (W.magazine) wtxt = `${W.name} · ${s.ammo ?? 0}/${W.magazine} · ${keyLabel(KEYS.reload)}: doldur`;
-      else wtxt = `${W.name} · Sol: vur`;
-    } else if (me.alive && roleType) wtxt = `[${keyLabel(KEYS.equip)}] ${GAME_CONFIG.equipment[roleType].name}`;
+      else if (W.magazine) wtxt = `${W.name} · ${s.ammo ?? 0}/${W.magazine}${T ? '' : ` · ${keyLabel(KEYS.reload)}: doldur`}`;
+      else wtxt = T ? W.name : `${W.name} · Sol: vur`;
+    } else if (me.alive && roleType && !T) wtxt = `[${keyLabel(KEYS.equip)}] ${GAME_CONFIG.equipment[roleType].name}`;
     this.hudWeapon.textContent = wtxt;
-    const itemsTxt = me.alive ? (s.items || []).map((it, i) => `[${keyLabel(KEYS[`slot${i + 3}`])}] ${GAME_CONFIG.equipment[it]?.name || it}`).join('   ') : '';
+    const itemsTxt = me.alive && !T ? (s.items || []).map((it, i) => `[${keyLabel(KEYS[`slot${i + 3}`])}] ${GAME_CONFIG.equipment[it]?.name || it}`).join('   ') : '';
     if (this.hudItems.textContent !== itemsTxt) this.hudItems.textContent = itemsTxt;
 
     let atxt = '';
     if (me.alive && ctx.role?.ability) {
       const nm = ABILITY_NAMES[ctx.role.ability] || 'Yetenek';
-      const key = keyLabel(KEYS.ability);
+      const key = T ? '' : `[${keyLabel(KEYS.ability)}] `;
       if (ctx.role.ability === 'medium') {
         // Medyum: kullanım hakkı yok. Gece (ışıklar kapalı) bağlanılır; sabah (ışıklar açılınca) bağlantı kendiliğinden kesilir.
         const night = isNight(ctx.world.lights);
-        atxt = `[${key}] ${nm}: ${night ? (s.mediumTarget ? `bağlı → ${this.nameOfPlayer(s.mediumTarget)}` : 'gece, bağlanabilirsin') : 'gündüz, bağlantı kapalı'}`;
+        atxt = `${key}${nm}: ${night ? (s.mediumTarget ? `bağlı → ${this.nameOfPlayer(s.mediumTarget)}` : s.mediumPick ? 'bu gece 1 kişi için kullandın' : 'gece, 1 kişiyle bağlanabilirsin') : 'gündüz, bağlantı kapalı'}`;
       } else if (ctx.role.ability === 's2g') {
         // S2G: gece bir kişiye 1 m yakından bakıp tuşu basılı tut; her gece 1 kez
         const night = isNight(ctx.world.lights);
-        atxt = `[${key}] ${nm}: ${!night ? 'gündüz, kullanılamaz' : s.s2gUsed ? 'bu gece kullandın' : 'hazır · bir kişiye yaklaş, bak, basılı tut'}`;
-      } else atxt = `[${key}] ${nm}: ${s.abilityCd > 0 ? `${Math.ceil(s.abilityCd)} sn` : 'hazır'}`;
+        atxt = `${key}${nm}: ${!night ? 'gündüz, kullanılamaz' : s.s2gUsed ? 'bu gece kullandın' : 'hazır · bir kişiye yaklaş, bak, basılı tut'}`;
+      } else if (ctx.role.ability === 'umaci') {
+        // Umacı: gece başına 1 kez, süre boyunca görünmez + oyuncuların içinden geçer (hareket edince dalgalanır)
+        const U = GAME_CONFIG.abilities.umaci;
+        const night = isNight(ctx.world.lights);
+        atxt = `${key}${nm}: ${s.umaciLeft > 0 ? `açık · ${Math.ceil(s.umaciLeft)} sn` : s.umaciUsed ? 'bu gece kullandın' : U.nightOnly && !night ? 'gündüz, kullanılamaz' : `hazır · ${U.duration} sn görünmez ol`}`;
+      } else atxt = `${key}${nm}: ${s.abilityCd > 0 ? `${Math.ceil(s.abilityCd)} sn` : 'hazır'}`;
     }
     this.hudAbility.textContent = atxt;
 
@@ -713,11 +706,19 @@ export class UI {
     // ---- ölü arayüzü ----
     this.deadBar.classList.toggle('hidden', me.alive);
     if (!me.alive) {
-      const t = ctx.movement.spectateId ? ctx.players.get(ctx.movement.spectateId) : null;
-      this.deadBar.textContent = `☠ İzleyicisin${t ? ` · İzlenen: ${t.name}` : ''} · ${keyLabel(KEYS.prevSpectate)}/${keyLabel(KEYS.nextSpectate)} oyuncu değiştir · ölülerle yazılı/sesli konuşabilirsin`;
+      const mv = ctx.movement;
+      const touch = !!ctx.input.touchMode;
+      const arrows = touch ? '◀ ▶' : `${keyLabel(KEYS.prevSpectate)}/${keyLabel(KEYS.nextSpectate)}`;
+      if (mv.voidView) {
+        this.deadBar.textContent = `☠ Öldün · ${arrows}: ceset değiştir · ${touch ? 'dokun' : 'tıkla'}: oyuncuları izle (geri dönüş yok) · ölülerle yazılı/sesli konuşabilirsin`;
+      } else {
+        const t = mv.spectateId ? ctx.players.get(mv.spectateId) : null;
+        const who = touch ? `${arrows} / dokun: oyuncu değiştir` : `Sol tık / ${keyLabel(KEYS.nextSpectate)}: sonraki · Sağ tık / ${keyLabel(KEYS.prevSpectate)}: önceki`;
+        this.deadBar.textContent = `☠ İzleyicisin${t ? ` · İzlenen: ${t.name}` : ''} · ${who} · ölülerle yazılı/sesli konuşabilirsin`;
+      }
     }
     this.hud.classList.toggle('is-dead', !me.alive);
-    const needLock = !ctx.input.locked && !this.modalOpen() && !ctx.playerList.sticky && !ctx.chat.box.classList.contains('typing');
+    const needLock = !ctx.input.locked && !this.modalOpen() && !ctx.playerList.sticky && !ctx.chat.box.classList.contains('typing') && !ctx.touch?.editing;
     this.lockHint.classList.toggle('hidden', !needLock);
 
     // ---- sayaçlar ----
@@ -805,7 +806,7 @@ export class UI {
     this.banner(SECONDARY.baiter.notice, 8000, 'warn', SECONDARY.baiter.text);
   }
 
-  /** Sağ alt: ana rolüm + ikincil roller (Baiter, Aşık) yan yana. Rol / baiter / sevgili değişince yeniden çizilir. */
+  /** Sağ alt: ana rolüm + Baiter (ikincil rol) + sevgilim yan yana. Rol / baiter / sevgili değişince yeniden çizilir. */
   renderRoles() {
     const r = ctx.role;
     const sig = r ? `${r.id}|${ctx.me_state.baiter ? 1 : 0}|${ctx.lover || ''}` : '';
@@ -815,7 +816,7 @@ export class UI {
     if (!r) return;
     this.hudRoles.appendChild(h('span', { class: 'chip role', style: { background: r.color } }, r.name));
     if (ctx.me_state.baiter) this.hudRoles.appendChild(h('span', { class: 'chip', style: { background: SECONDARY.baiter.color } }, SECONDARY.baiter.name));
-    if (ctx.lover) this.hudRoles.appendChild(h('span', { class: 'chip', style: { background: SECONDARY.lover.color } }, `♥ ${SECONDARY.lover.name}: ${this.nameOfPlayer(ctx.lover)}`));
+    if (ctx.lover) this.hudRoles.appendChild(h('span', { class: 'chip', style: { background: ROLES.lover.color } }, `♥ Aşkın: ${this.nameOfPlayer(ctx.lover)}`));
   }
 
   /** Ortadaki ilerleme çubuğu (S2G: tuşu basılı tutma). */
@@ -846,13 +847,13 @@ export class UI {
       if (v.role) rows.push([ROLES[v.role]?.name || v.role, ROLES[v.role]?.color, this.nameOfPlayer(id)]);
       if (v.baiter) rows.push([SECONDARY.baiter.name, SECONDARY.baiter.color, this.nameOfPlayer(id)]);
     }
-    if (ctx.lover) rows.push(['Aşkın', SECONDARY.lover.color, this.nameOfPlayer(ctx.lover)]);
+    if (ctx.lover) rows.push(['Aşkın', ROLES.lover.color, this.nameOfPlayer(ctx.lover)]);
     for (const [label, color, name] of rows) {
       this.introLines.appendChild(h('div', { class: 'intro-line' }, h('span', { class: 'k', style: { color } }, `${label}:`), ' ', name));
     }
-    const text = r.text.replace(/\{(\w+)\}/g, (_, k) => keyLabel(KEYS[k]));
+    let text = r.text.replace(/\{(\w+)\}/g, (_, k) => (ctx.input.touchMode ? TOUCH_NAMES[k] || keyLabel(KEYS[k]) : keyLabel(KEYS[k])));
+    if (ctx.input.touchMode) text = text.replace(/ düğmesi tuşunu/g, ' düğmesini').replace(/ düğmesi tuşuna/g, ' düğmesine').replace(/sol tıkla/g, 'dokun');
     this.introDesc.appendChild(h('p', {}, text));
-    if (ctx.lover) this.introDesc.appendChild(h('p', { class: 'love' }, SECONDARY.lover.text));
   }
 
   showEnd(m) {
@@ -905,7 +906,7 @@ export class UI {
   }
 
   // ================================================================== ayarlar
-  /** Ayarlar: Genel · Mikrofon · Tuşlar sekmeleri. */
+  /** Ayarlar: Genel · Mobil · Mikrofon · Tuşlar sekmeleri. */
   openSettings(tab) {
     if (tab) this.settingsTab = tab;
     else if (!this.settingsTab) this.settingsTab = 'general';
@@ -936,10 +937,10 @@ export class UI {
       ctx.voice.stopTest();
       ctx.voice.onDevices = null;
     }
-    const tabs = h('div', { class: 'seg tabs3' },
-      ...[['general', 'Genel'], ['mic', 'Mikrofon'], ['keys', 'Tuşlar']].map(([id, label]) =>
+    const tabs = h('div', { class: 'seg tabs4' },
+      ...[['general', 'Genel'], ['touch', 'Mobil'], ['mic', 'Mikrofon'], ['keys', 'Tuşlar']].map(([id, label]) =>
         this.btn(label, () => { this.settingsTab = id; this.renderSettings(); }, tab === id ? 'active' : '')));
-    const body = tab === 'mic' ? this.settingsMic() : tab === 'keys' ? this.settingsKeys() : this.settingsGeneral();
+    const body = tab === 'mic' ? this.settingsMic() : tab === 'keys' ? this.settingsKeys() : tab === 'touch' ? this.settingsTouch() : this.settingsGeneral();
     this.settingsBox.replaceChildren(
       h('div', { class: 'panel settings-panel' },
         h('h3', {}, 'Ayarlar'), tabs, h('div', { class: 'settings-body' }, ...body),
@@ -978,7 +979,6 @@ export class UI {
     dead.input.onchange = () => { S.showDeadChat = dead.input.checked; save(); };
     const guard = this.check('Ctrl+W sekmeyi kapatmasın (oyunda tam ekran kullanır)', S.guardTab !== false);
     guard.input.onchange = () => { S.guardTab = guard.input.checked; save(); };
-
     const out = [
       this.field('Fare hassasiyeti', sens),
       this.field('Görüş alanı (FOV)', h('div', { class: 'range-row' }, fov, fovText)),
@@ -992,6 +992,52 @@ export class UI {
       out.push(h('div', { class: 'note' }, 'assets/house.glb bulunamadı: örnek ev kullanılıyor. Blender\'da adlandırma örneği olarak indirip açabilirsin.'),
         this.btn('Örnek evi .glb olarak indir', () => this.exportSampleHouse(), 'small'));
     }
+    return out;
+  }
+
+  /** Mobil: kontrolleri aç / kapat, joystick (serbest · sabit + koşu kilidi), düğme boyutu / saydamlığı / bakış hassasiyeti, düğme düzenleyicisi. */
+  settingsTouch() {
+    const S = ctx.settings;
+    const tc = ctx.touch;
+    const save = () => store.set('settings', S);
+    const mode = this.select([['auto', 'Otomatik (dokunmatik cihazda açık)'], ['on', 'Açık'], ['off', 'Kapalı']], S.touch || 'auto');
+    mode.onchange = () => { S.touch = mode.value; save(); tc?.apply(); this.renderSettings(); };
+    const out = [this.field('Mobil kontroller', mode, 'Kapatınca ekran düğmeleri kalkar (klavye + fare kullanan tabletler için). Geri açmak için ana menü → Ayarlar → Mobil.')];
+    if (!tc) return out;
+    const T = tc.cfg();
+    if (!tc.enabled) out.push(h('div', { class: 'note' }, 'Mobil kontroller şu an kapalı; aşağıdaki ayarlar açılınca uygulanır.'));
+
+    const range = (label, key, min, max, step, fmt) => {
+      const el = h('input', { type: 'range', min: String(min), max: String(max), step: String(step), value: String(T[key]) });
+      const val = h('span', { class: 'range-val' }, fmt(T[key]));
+      el.oninput = () => { T[key] = Number(el.value); val.textContent = fmt(T[key]); tc.refresh(); save(); };
+      return this.field(label, h('div', { class: 'range-row' }, el, val));
+    };
+    out.push(
+      range('Düğme boyutu', 'scale', 0.6, 1.6, 0.05, (v) => `%${Math.round(v * 100)}`),
+      range('Düğme saydamlığı', 'opacity', 0.3, 1, 0.05, (v) => `%${Math.round(v * 100)}`),
+      range('Bakış hassasiyeti', 'look', 0.5, 2.5, 0.1, (v) => `×${v.toFixed(1)}`),
+    );
+
+    const stick = this.select([['float', 'Serbest (parmağın nereye değerse orada çıkar)'], ['fixed', 'Sabit / kilitli (hep aynı yerde durur)']], T.stick);
+    stick.onchange = () => { T.stick = stick.value; tc.refresh(); save(); this.renderSettings(); };
+    const run = this.check('Koşu kilidi: çubuğu sonuna itince koşu başlar, çubuğu merkeze yaklaştırana kadar sürer', T.runLock);
+    run.input.onchange = () => { T.runLock = run.input.checked; save(); };
+    out.push(
+      this.field('Joystick', stick, T.stick === 'fixed' ? 'Sabit joystick yalnızca tabanına dokununca tutulur; konumunu ve boyutunu aşağıdaki düzenleyiciden ayarlarsın.' : null),
+      run.el,
+    );
+
+    const edit = this.btn('Düğme düzenini düzenle', () => {
+      if (!tc.enabled) { this.toast('Önce mobil kontrolleri aç (Otomatik / Açık).', 2800); return; }
+      this.closeModal('settings');
+      if (!tc.beginEdit()) this.openSettings('touch');
+    }, 'small');
+    const reset = this.btn('Mobil ayarları sıfırla', () => { tc.resetUI(); this.renderSettings(); this.toast('Mobil ayarlar varsayılana döndü.', 1800); }, 'small');
+    out.push(h('div', { class: 'field' },
+      h('span', { class: 'field-label' }, 'Düğme düzeni'),
+      h('div', { style: { display: 'flex', gap: '8px', flexWrap: 'wrap' } }, edit, reset),
+      h('small', {}, 'Düzenleyicide düğmeyi sürükleyerek taşı; dokunup seç, −/+ ile boyutlandır, Gizle ile kaldır. Menü düğmesi ve joystick gizlenemez.')));
     return out;
   }
 

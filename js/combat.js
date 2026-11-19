@@ -186,13 +186,13 @@ export class CombatSystem {
       st.cdLeft = W.cooldown;
       const t = this.melee(from, o, dir, W.range, W.coneCos);
       this.host.broadcast({ t: 'stab', from, id: t?.id || null });
-      if (t) this.damage(t.id, W.damage, from, 'knife', o);
+      if (t) this.damage(t.id, W.damage, from, 'knife', o, dir);
     } else if (weapon === 'taser') {
       st.cdLeft = W.cooldown;
       const t = this.melee(from, o, dir, W.range, W.coneCos);
       this.host.broadcast({ t: 'zap', from, id: t?.id || null, e: t ? arr(t.pos) : arr(o.clone().addScaledVector(dir, W.range)) });
       if (t) {
-        this.damage(t.id, W.damage, from, 'taser', o);
+        this.damage(t.id, W.damage, from, 'taser', o, dir);
         if (S.players[t.id]?.alive) {
           S.players[t.id].frozen = W.stun;
           this.host.sendTo(t.id, { t: 'freeze', dur: W.stun });
@@ -219,7 +219,7 @@ export class CombatSystem {
       } else {
         const hit = this.hitscan(from, o, dir, W.range);
         this.host.broadcast({ t: 'shot', from, o: arr(o), e: arr(hit.end), k: weapon, hit: hit.id ? 1 : 0 });
-        if (hit.id) this.damage(hit.id, W.damage, from, weapon, o);
+        if (hit.id) this.damage(hit.id, W.damage, from, weapon, o, dir);
       }
       if (st.ammo <= 0) this.startReload(from, weapon);
       else this.host.sendMe(from);
@@ -300,7 +300,8 @@ export class CombatSystem {
         this.host.broadcast({ t: 'fuse', id: from, dur: cfg.fuse });
         break;
       case 'medium': {
-        // Sayaç / bekleme yok. Tek kural: bağlantı yalnızca GECE (ışıklar kapalıyken) kurulur; sabah otomatik kesilir.
+        // Sayaç / bekleme yok. Kurallar: bağlantı yalnızca GECE (ışıklar kapalıyken) kurulur; sabah otomatik kesilir;
+        // her gece YALNIZCA 1 KİŞİ için kullanılır (seçtiğin kişiyle bağlantıyı kapatıp yeniden açmak ya da karşılıklılığı değiştirmek serbest, başkasına geçmek yok).
         if (d.off) {
           st.mediumTarget = null;
         } else {
@@ -310,9 +311,28 @@ export class CombatSystem {
             this.host.sendTo(from, { t: 'note', text: 'Medyum bağlantısı yalnızca gece (ışıklar kapalıyken) kurulabilir.' });
             return;
           }
+          const nn = S.nightNo || 0;
+          if (nn > 0 && st.mediumNight === nn && st.mediumPick && st.mediumPick !== d.target) {
+            this.host.sendTo(from, { t: 'note', text: 'Medyum: bu gece yeteneğini zaten bir kişi için kullandın (gece başına 1 kişi).' });
+            return;
+          }
           st.mediumTarget = d.target;
           st.mediumMutual = !!d.mutual;
+          st.mediumNight = nn;
+          st.mediumPick = d.target;
         }
+        break;
+      }
+      case 'umaci': {
+        // Gece başına 1 kez; cfg.duration sn görünmez. Host konum paketine "um" bayrağı koyar; oyuncular arası çarpışmayı istemciler kapatır (movement.js).
+        const note = (text) => this.host.sendTo(from, { t: 'note', text });
+        if (st.umaciLeft > 0) return note('Zaten görünmezsin.');
+        if (cfg.nightOnly && !isNight(ctx.world.lights)) return note('Umacı yeteneği yalnızca gece (ışıklar kapalıyken) kullanılabilir.');
+        const nn = S.nightNo || 0;
+        if (st.umaciNight === nn) return note('Bu gece yeteneğini zaten kullandın (gece başına 1 kez).');
+        st.umaciLeft = cfg.duration;
+        st.umaciNight = nn;
+        note(`Görünmezsin: ${cfg.duration} sn. Hareket edince dalgalanırsın; durursan tamamen görünmez olursun.`);
         break;
       }
       case 's2g':
@@ -403,11 +423,18 @@ export class CombatSystem {
     }
   }
 
+  /** Uyurgezer uyanışı: seçilen odada geçerli nokta yoksa öteki odaları dener; hiçbirinde yoksa odaya en yakın doğma noktası. */
   teleportToRoom(id, roomId) {
-    const room = ctx.world.rooms.find((r) => r.id === roomId) || pick(ctx.world.rooms);
-    if (!room) return;
-    const p = ctx.world.randomPointInRoom(room);
-    this.host.sendTo(id, { t: 'teleport', p: arr(p) });
+    const rooms = ctx.world.rooms;
+    const first = rooms.find((r) => r.id === roomId) || pick(rooms);
+    if (!first) return;
+    const rest = rooms.filter((r) => r !== first).sort(() => Math.random() - 0.5);
+    let p = null;
+    for (const r of [first, ...rest]) {
+      p = ctx.world.randomPointInRoom(r);
+      if (p) break;
+    }
+    this.host.sendTo(id, { t: 'teleport', p: arr(p || ctx.world.spawnNear(first.center)) });
   }
 
   /** Bombacı: kendi konumunda, düğmeye basınca patlar. */
@@ -494,7 +521,7 @@ export class CombatSystem {
     if (pr.kind === 'rocket') {
       this.blastAt(point, { radius: W.radius, damage: W.damage, blastImpulse: W.blastImpulse, by: pr.by, hurtSelf: true, los: true });
     } else if (hitId) {
-      this.damage(hitId, W.damage, pr.by, pr.kind); // ölüm itişinin yönü: vuranın konumundan
+      this.damage(hitId, W.damage, pr.by, pr.kind, null, pr.v); // ölüm itişinin yönü: topun uçuş yönü (pr.v)
     }
   }
 
@@ -563,7 +590,7 @@ export class CombatSystem {
    * src: hasarın geldiği nokta ({x,y,z}; ölüm itişinin yönü için — atıcının gözü, patlama merkezi...). Yoksa `by` oyuncusunun konumu kullanılır.
    * 'hit' mesajındaki dead:1 → ölümcül vuruş: istemciler "darbe" sesini çalmaz (ölüm tamamen sessizdir).
    */
-  damage(targetId, amount, by, cause, src = null) {
+  damage(targetId, amount, by, cause, src = null, dir = null) {
     const S = this.S;
     const t = S.players[targetId];
     if (!t?.alive || S.phase !== 'playing') return;
@@ -572,35 +599,59 @@ export class CombatSystem {
     const lethal = t.hp <= 0;
     const p = ctx.players.get(targetId);
     this.host.broadcast({ t: 'hit', id: targetId, dmg: amount, by, cause, p: p ? arr(truePos(p)) : null, dead: lethal ? 1 : 0 });
-    if (lethal) this.kill(targetId, by, cause, src);
+    if (lethal) this.kill(targetId, by, cause, src, false, dir);
     else this.host.sendMe(targetId);
   }
 
-  /** Ölüm anında cesede verilecek itiş (m/sn): vuran taraftan uzağa; patlamada merkezden dışarı, mesafeyle azalarak. */
-  deathImpulse(id, by, cause, src) {
+  /**
+   * Ölüm anında cesede verilecek itiş (m/sn). VURULAN TARAFTAN uzağa: dir (kurşunun / bıçağın / topun gittiği yön) varsa o yönde,
+   * yoksa kaynaktan (src) ya da vurandan hedefe doğru. Yatay itiş + hafif yukarı (stumbleLift) + ölenin kendi hızından bir pay (momentum).
+   * Patlamada merkezden dışarı, mesafeyle azalarak (kendi blastImpulse gücüyle).
+   */
+  deathImpulse(id, by, cause, src, dir = null) {
     const p = ctx.players.get(id);
     if (!p) return [0, 0, 0];
+    const CC = GAME_CONFIG.corpse;
     const tp = truePos(p);
     let from = src;
     if (!from && by) {
       const bp = ctx.players.get(by);
       if (bp) from = truePos(bp);
     }
-    let mag = GAME_CONFIG.corpse.stumble[cause] ?? 0;
+    let mag = CC.stumble[cause] ?? 0;
     if (cause === 'bomb') {
       const B = this._blast || A.bomber; // roket / bomba eşyası kendi gücünü verir
       const dist = from ? Math.hypot(tp.x - from.x, tp.y + 0.9 - from.y, tp.z - from.z) : 0;
       mag = B.blastImpulse * Math.max(0.3, 1 - dist / B.radius);
+      if (!from) return [0, 0, 0];
+      _t.set(tp.x - from.x, tp.y + 0.9 - from.y, tp.z - from.z);
+      if (_t.lengthSq() < 1e-6) _t.set(Math.random() - 0.5, 0, Math.random() - 0.5);
+      _t.normalize();
+      return [round3(_t.x * mag), round3(mag * 0.55 + _t.y * mag), round3(_t.z * mag)];
     }
-    if (!from || mag <= 0) return [0, 0, 0];
-    _t.set(tp.x - from.x, cause === 'bomb' ? tp.y + 0.9 - from.y : 0, tp.z - from.z);
+    if (mag <= 0) return [0, 0, 0];
+    // yön: önce vuruşun kendi yönü (yataya yansıtılır), olmazsa kaynaktan hedefe
+    _t.set(0, 0, 0);
+    if (dir) _t.set(dir.x, 0, dir.z);
+    if (_t.lengthSq() < 1e-4 && from) _t.set(tp.x - from.x, 0, tp.z - from.z);
     if (_t.lengthSq() < 1e-6) _t.set(Math.random() - 0.5, 0, Math.random() - 0.5);
     _t.normalize();
-    return [round3(_t.x * mag), round3(mag * (cause === 'bomb' ? 0.55 : 0.12) + _t.y * mag), round3(_t.z * mag)];
+    let vx = _t.x * mag;
+    let vz = _t.z * mag;
+    // koşarken vurulan, hızının bir kısmını korur (yerel oyuncu: hareket hızı · uzaktakiler: son konum paketlerinden)
+    const k = CC.momentum || 0;
+    if (k > 0) {
+      const v = p.isLocal ? ctx.movement?.vel : performance.now() - (p._netT || 0) < 400 ? p.netVel : null;
+      if (v) {
+        vx += v.x * k;
+        vz += v.z * k;
+      }
+    }
+    return [round3(vx), round3(mag * (CC.stumbleLift ?? 0.3)), round3(vz)];
   }
 
-  /** force: debug "öldür" — ölümsüzlüğü de aşar. */
-  kill(id, by, cause, src = null, force = false) {
+  /** force: debug "öldür" — ölümsüzlüğü de aşar. dir: ölümcül vuruşun yönü (ceset o yöne savrulur). */
+  kill(id, by, cause, src = null, force = false, dir = null) {
     const S = this.S;
     const st = S.players[id];
     if (!st?.alive) return;
@@ -611,6 +662,7 @@ export class CombatSystem {
     st.slot = 1;
     st.fuse = 0;
     st.sleepLeft = 0;
+    st.umaciLeft = 0;
     st.mediumTarget = null;
     for (const o of Object.values(S.players)) if (o.mediumTarget === id) o.mediumTarget = null;
     this.s2gCancel(id); // ölen S2G'nin fermuarı kesilir
@@ -619,7 +671,7 @@ export class CombatSystem {
     const pos = p ? truePos(p) : { x: 0, y: 0, z: 0 };
     ctx.world.grab.hostRelease(id);
     ctx.corpses.hostRelease(id);
-    this.host.broadcast({ t: 'death', id, by, cause, p: arr(pos), yaw: round3(p?.yaw || 0), imp: this.deathImpulse(id, by, cause, src) });
+    this.host.broadcast({ t: 'death', id, by, cause, p: arr(pos), yaw: round3(p?.yaw || 0), imp: this.deathImpulse(id, by, cause, src, dir) });
     // Katil öldüyse bıçak artık geri dönmez
     if (st.role === 'killer' && S.knife.s !== 'held') this.knifeBack(id, false);
     // Sevgili: biri elenirse diğeri de elenir
@@ -656,6 +708,13 @@ export class CombatSystem {
           this.teleportToRoom(id, null); // rastgele oda
         }
       }
+      if (st.umaciLeft > 0) {
+        st.umaciLeft = Math.max(0, st.umaciLeft - dt);
+        if (st.umaciLeft <= 0) {
+          this.host.sendTo(id, { t: 'note', text: 'Umacı görünmezliğin bitti.' });
+          this.host.sendMe(id);
+        }
+      }
       if (st.fuse > 0) {
         st.fuse -= dt;
         if (st.fuse <= 0) {
@@ -678,7 +737,7 @@ export class CombatSystem {
     this.wasNight = night;
     if (night && !was) {
       this.S.nightNo = (this.S.nightNo || 0) + 1; // yeni gece başladı (S2G her gece 1 kez)
-      for (const [id, st] of Object.entries(this.S.players)) if (st.alive && st.role === 's2g') this.host.sendMe(id);
+      for (const [id, st] of Object.entries(this.S.players)) if (st.alive && (st.role === 's2g' || st.role === 'umaci')) this.host.sendMe(id); // yeni gecede hak yenilenir
     }
     if (was == null || night === was) return;
     if (night) return; // gece oldu: medyumlar yeniden bağlanabilir (bildirim gerekmez)
@@ -725,7 +784,7 @@ export class CombatSystem {
         if (best) {
           const hp = _o.clone().addScaledVector(_d, best.t);
           this.landKnife(hp, _d);
-          this.damage(best.id, W.throwDamage, killerId, 'knifeThrow', _o);
+          this.damage(best.id, W.throwDamage, killerId, 'knifeThrow', _o, _d);
         } else if (wall) {
           const hp = wall.point.clone().addScaledVector(wall.normal, 0.03);
           this.landKnife(hp, _d);

@@ -109,6 +109,14 @@ input[type='range'] { width: 100%; accent-color: var(--accent); }
 .hud-alive { font-size: 13px; color: var(--muted); }
 .hud-room { position: absolute; top: 12px; left: 14px; font-size: 12px; opacity: 0.7; }
 .crosshair { position: absolute; left: 50%; top: 50%; width: 6px; height: 6px; margin: -3px 0 0 -3px; border-radius: 50%; background: rgba(255, 255, 255, 0.8); box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.55); transition: width 0.1s, height 0.1s, margin 0.1s, background 0.1s, box-shadow 0.1s; }
+/* Sniper dürbünü (inventory.js → _scopeUpdate body.scoped ekler): ortası açık daire, dışı kapkara; ince artı + kırmızı nokta */
+.scope { position: absolute; inset: 0; opacity: 0; transition: opacity 0.1s; background: radial-gradient(circle at 50% 50%, transparent 0, transparent 31vmin, rgba(0, 0, 0, 0.55) 31.2vmin, #000 36vmin); }
+.scope i { position: absolute; left: 50%; top: 50%; background: rgba(0, 0, 0, 0.85); transform: translate(-50%, -50%); }
+.scope .sc-h { width: 62vmin; height: 1px; }
+.scope .sc-v { width: 1px; height: 62vmin; }
+.scope .sc-dot { width: 4px; height: 4px; border-radius: 50%; background: #ff3b30; }
+body.scoped .scope { opacity: 1; }
+body.scoped .crosshair { opacity: 0; }
 /* Bakılan yerde etkileşilebilir bir şey varsa nişangâh halkaya dönüşür (etkileşim bakışa göre) */
 .crosshair.active { width: 18px; height: 18px; margin: -9px 0 0 -9px; background: transparent; box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.95), 0 0 0 3px rgba(0, 0, 0, 0.5), 0 0 12px rgba(255, 255, 255, 0.45); }
 .hud-bl { position: absolute; left: 14px; bottom: 14px; width: 250px; }
@@ -182,6 +190,7 @@ input[type='range'] { width: 100%; accent-color: var(--accent); }
 .settings .panel { width: min(520px, 94vw); max-height: 92vh; overflow-y: auto; }
 .settings-body { max-height: 56vh; overflow-y: auto; padding-right: 4px; scrollbar-width: thin; }
 .seg.tabs3 { grid-template-columns: repeat(3, 1fr); margin-bottom: 4px; }
+.seg.tabs4 { grid-template-columns: repeat(4, 1fr); margin-bottom: 4px; }
 .range-row { display: flex; align-items: center; gap: 10px; }
 .range-row input { flex: 1; }
 .range-val { min-width: 44px; text-align: right; font-weight: 700; font-variant-numeric: tabular-nums; }
@@ -225,6 +234,8 @@ input[type='range'] { width: 100%; accent-color: var(--accent); }
 .dbg-row { display: flex; align-items: center; gap: 8px; padding: 6px 8px; border-radius: 8px; background: #151922; border: 1px solid #262c39; }
 .dbg-row.me { border-color: #3b4b6e; }
 .dbg-name { flex: 1; min-width: 0; font-size: 13px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dbg-heart { color: #ff7aa8; font-weight: 800; }
+.dbg-none { display: block; color: var(--muted); }
 .dbg-st.alive { color: var(--good); }
 .dbg-st.dead { color: var(--danger); }
 .dbg-add .input { width: 100%; }
@@ -312,3 +323,159 @@ input[type='range'] { width: 100%; accent-color: var(--accent); }
 .xray-layer { position: absolute; inset: 0; z-index: 6; overflow: hidden; pointer-events: none; }
 .xray-tag { position: absolute; left: 0; top: 0; padding: 2px 7px; border-radius: 6px; background: rgba(8, 10, 16, 0.72); border: 1px solid rgba(255, 255, 255, 0.2); color: #fff; font: 700 12px/1.3 system-ui, sans-serif; white-space: nowrap; text-shadow: 0 1px 2px #000; will-change: transform; }
 .xray-tag small { margin-left: 6px; font-weight: 600; opacity: 0.85; }
+
+/* =====================================================================
+   Dokunmatik (mobil) arayüz — js/touch.js, touchButtons.js
+   Ölçü birimi --u = ekran yüksekliğinin %1'i (16:9'dan dar ekranlarda genişliğe göre): her ekranda aynı oransal büyüklük.
+   ===================================================================== */
+:root {
+  --vh: 1vh;
+  --u: min(var(--vh), 0.5625vw);
+  --sa-l: env(safe-area-inset-left, 0px);
+  --sa-r: env(safe-area-inset-right, 0px);
+  --sa-t: env(safe-area-inset-top, 0px);
+  --sa-b: env(safe-area-inset-bottom, 0px);
+}
+@supports (height: 100dvh) { :root { --vh: 1dvh; } }
+html, body { overscroll-behavior: none; }
+body { touch-action: manipulation; }
+
+#touch { position: fixed; inset: 0; z-index: 7; pointer-events: none; -webkit-touch-callout: none; }
+#touch.off { visibility: hidden; }
+#touch, #touch * { touch-action: none; -webkit-user-select: none; user-select: none; -webkit-tap-highlight-color: transparent; }
+.t-look { position: absolute; inset: 0; pointer-events: auto; }
+#touch.off .t-look, #touch.off .t-btn { pointer-events: none; }
+/* oyuncu listesi açıkken boş alan geçirgendir: dokunmatik katman (z-index 7) #ui'nin (kendi yığın bağlamı) üstünde kalır; yoksa satırlara dokunuş yutulur ("Baiter ver" çalışmazdı) */
+#touch.list-open .t-look { pointer-events: none; }
+
+/* yüzen analog çubuk */
+.t-stick-hint { position: absolute; left: calc(var(--u) * 9 + var(--sa-l)); bottom: calc(var(--u) * 9 + var(--sa-b)); width: calc(var(--u) * 28); height: calc(var(--u) * 28); box-sizing: border-box; border-radius: 50%; border: calc(var(--u) * 0.4) dashed rgba(255, 255, 255, 0.2); background: rgba(255, 255, 255, 0.04); pointer-events: none; }
+.t-stick { position: absolute; left: 0; top: 0; width: 0; height: 0; pointer-events: none; }
+.t-stick::before { content: ''; position: absolute; box-sizing: border-box; width: calc(var(--u) * 32 * var(--k, 1)); height: calc(var(--u) * 32 * var(--k, 1)); left: calc(var(--u) * -16 * var(--k, 1)); top: calc(var(--u) * -16 * var(--k, 1)); border-radius: 50%; background: rgba(255, 255, 255, 0.07); border: calc(var(--u) * 0.45) solid rgba(255, 255, 255, 0.3); }
+.t-knob { position: absolute; box-sizing: border-box; width: calc(var(--u) * 12 * var(--k, 1)); height: calc(var(--u) * 12 * var(--k, 1)); left: calc(var(--u) * -6 * var(--k, 1)); top: calc(var(--u) * -6 * var(--k, 1)); border-radius: 50%; background: rgba(255, 255, 255, 0.4); border: calc(var(--u) * 0.45) solid rgba(255, 255, 255, 0.75); }
+.t-stick.run .t-knob { background: rgba(255, 159, 67, 0.55); border-color: var(--accent-2); }
+
+/* düğmeler */
+.t-btn { position: absolute; box-sizing: border-box; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: calc(var(--u) * 0.3); width: calc(var(--u) * var(--s, 13)); height: calc(var(--u) * var(--s, 13)); border-radius: 50%; color: #f2f5fa; background: rgba(16, 20, 30, 0.5); border: calc(var(--u) * 0.35) solid rgba(255, 255, 255, 0.3); box-shadow: 0 calc(var(--u) * 0.4) calc(var(--u) * 1.4) rgba(0, 0, 0, 0.35); pointer-events: auto; opacity: var(--to, 1); transition: transform 0.06s, background 0.1s, border-color 0.1s, opacity 0.1s; }
+.t-btn i { display: block; width: calc(var(--u) * var(--s, 13) * 0.42); height: calc(var(--u) * var(--s, 13) * 0.42); }
+.t-btn.no-text i { width: calc(var(--u) * var(--s, 13) * 0.52); height: calc(var(--u) * var(--s, 13) * 0.52); }
+.t-btn i svg { display: block; width: 100%; height: 100%; }
+.t-btn b { max-width: 94%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font: 700 calc(var(--u) * 2.6) / 1.05 system-ui, sans-serif; text-shadow: 0 1px 2px rgba(0, 0, 0, 0.7); }
+.t-btn.no-text b { display: none; }
+.t-btn.down { transform: scale(0.92); background: rgba(255, 255, 255, 0.28); border-color: rgba(255, 255, 255, 0.8); }
+.t-btn.on { background: rgba(62, 207, 142, 0.38); border-color: var(--good, #3ecf8e); }
+.t-btn.dim { opacity: calc(var(--to, 1) * 0.45); }
+.t-btn.hidden { display: flex !important; visibility: hidden; pointer-events: none; }
+
+.tb-fire { --s: 20; right: calc(var(--u) * 5 + var(--sa-r)); bottom: calc(var(--u) * 9 + var(--sa-b)); background: rgba(255, 90, 79, 0.4); border-color: rgba(255, 150, 140, 0.8); }
+.tb-jump { --s: 14; right: calc(var(--u) * 8 + var(--sa-r)); bottom: calc(var(--u) * 32 + var(--sa-b)); }
+.tb-crouch { --s: 13; right: calc(var(--u) * 28 + var(--sa-r)); bottom: calc(var(--u) * 24 + var(--sa-b)); }
+.tb-alt { --s: 13; right: calc(var(--u) * 29 + var(--sa-r)); bottom: calc(var(--u) * 6 + var(--sa-b)); }
+.tb-use { --s: 14; width: auto; min-width: calc(var(--u) * 14); flex-direction: row; gap: calc(var(--u) * 1.2); padding: 0 calc(var(--u) * 3.4); border-radius: 999px; right: calc(var(--u) * 27 + var(--sa-r)); bottom: calc(var(--u) * 39 + var(--sa-b)); background: rgba(255, 159, 67, 0.4); border-color: rgba(255, 190, 120, 0.85); }
+.tb-use i, .tb-use.no-text i { width: calc(var(--u) * 6); height: calc(var(--u) * 6); }
+.tb-use b { max-width: none; font-size: calc(var(--u) * 3.2); }
+.tb-reload { --s: 11; right: calc(var(--u) * 46 + var(--sa-r)); bottom: calc(var(--u) * 8 + var(--sa-b)); }
+.tb-skill { --s: 13; right: calc(var(--u) * 45 + var(--sa-r)); bottom: calc(var(--u) * 24 + var(--sa-b)); }
+.tb-light { --s: 11; left: calc(var(--u) * 3 + var(--sa-l)); bottom: calc(var(--u) * 40 + var(--sa-b)); }
+.tb-mic { --s: 11; left: calc(var(--u) * 3 + var(--sa-l)); bottom: calc(var(--u) * 53 + var(--sa-b)); }
+.tb-pause, .tb-chat, .tb-list, .tb-sound, .tb-level { --s: 11.5; top: calc(var(--u) * 2 + var(--sa-t)); }
+.tb-pause { right: calc(var(--u) * 2 + var(--sa-r)); }
+.tb-chat { right: calc(var(--u) * 14.5 + var(--sa-r)); }
+.tb-list { right: calc(var(--u) * 27 + var(--sa-r)); }
+.tb-sound { right: calc(var(--u) * 39.5 + var(--sa-r)); }
+.tb-level { right: calc(var(--u) * 52 + var(--sa-r)); }
+.tb-prev, .tb-next { --s: 14; left: 50%; bottom: calc(var(--u) * 8 + var(--sa-b)); }
+.tb-prev { margin-left: calc(var(--u) * -18); }
+.tb-next { margin-left: calc(var(--u) * 4); }
+
+/* alt orta: çanta çubuğu */
+.t-hotbar { position: absolute; left: 0; right: 0; bottom: calc(var(--u) * 3 + var(--sa-b)); display: flex; justify-content: center; gap: calc(var(--u) * 1.2); pointer-events: none; }
+.t-hotbar .t-btn { position: relative; --s: 10.5; border-radius: calc(var(--u) * 2.2); }
+.t-hotbar .t-btn.on { background: rgba(255, 255, 255, 0.3); border-color: #fff; }
+.t-hotbar .t-btn.hidden { display: none !important; }
+
+/* dikey ekran uyarısı */
+.t-rotate { position: fixed; inset: 0; z-index: 90; display: grid; place-items: center; background: rgba(8, 10, 15, 0.97); text-align: center; color: #fff; }
+.t-rotate-box { display: grid; gap: 10px; justify-items: center; padding: 24px; }
+.t-rotate-ico { font-size: 64px; line-height: 1; animation: t-spin 2.4s ease-in-out infinite; }
+.t-rotate-box b { font-size: 20px; }
+.t-rotate-box span { color: var(--muted); font-size: 14px; }
+@keyframes t-spin { 0%, 20% { transform: rotate(0); } 70%, 100% { transform: rotate(-90deg); } }
+
+/* ---- dokunmatikte oyun içi HUD: tüm ölçüler --u cinsinden (her ekranda aynı oransal boyut) ---- */
+html.touch .lock-hint, html.touch .hud-mic, html.touch .hud-items, html.touch .prompt, html.touch .chat-toggle { display: none !important; }
+html.touch .hud-top { top: calc(var(--u) * 2 + var(--sa-t)); gap: calc(var(--u) * 3); padding: calc(var(--u) * 1) calc(var(--u) * 3.5); border-radius: calc(var(--u) * 2.2); }
+html.touch .hud-timer { font-size: calc(var(--u) * 5.2); }
+html.touch .hud-alive { font-size: calc(var(--u) * 3); }
+html.touch .hud-room { top: calc(var(--u) * 2 + var(--sa-t)); left: calc(var(--u) * 2 + var(--sa-l)); font-size: calc(var(--u) * 2.8); }
+html.touch .hud-bl { left: calc(var(--u) * 2 + var(--sa-l)); top: calc(var(--u) * 7 + var(--sa-t)); bottom: auto; width: calc(var(--u) * 34); }
+html.touch .hud-name { margin-bottom: calc(var(--u) * 1); font-size: calc(var(--u) * 4.4); }
+html.touch .hp { height: calc(var(--u) * 3.6); border-radius: calc(var(--u) * 1.8); }
+html.touch .hp span { font-size: calc(var(--u) * 2.6); }
+html.touch .hud-br { left: 50%; right: auto; top: calc(var(--u) * 11.5 + var(--sa-t)); bottom: auto; transform: translateX(-50%); align-items: center; max-width: calc(var(--u) * 60); }
+html.touch .hud-roles { justify-content: center; gap: calc(var(--u) * 1); }
+html.touch .chip { padding: calc(var(--u) * 0.9) calc(var(--u) * 2.4); border-radius: calc(var(--u) * 1.8); font-size: calc(var(--u) * 3.4); }
+html.touch .chip.role { font-size: calc(var(--u) * 3.8); }
+html.touch .hud-bc { bottom: calc(var(--u) * 17 + var(--sa-b)); width: calc(var(--u) * 62); }
+html.touch .hud-weapon, html.touch .hud-ability { font-size: calc(var(--u) * 3.6); }
+html.touch .dead-bar { top: calc(var(--u) * 18 + var(--sa-t)); max-width: calc(var(--u) * 100); padding: calc(var(--u) * 1.4) calc(var(--u) * 3); font-size: calc(var(--u) * 3.2); }
+html.touch .toasts { top: calc(var(--u) * 16 + var(--sa-t)); right: calc(var(--u) * 2 + var(--sa-r)); }
+html.touch .toast { max-width: calc(var(--u) * 70); padding: calc(var(--u) * 2) calc(var(--u) * 3); font-size: calc(var(--u) * 3.3); }
+html.touch .look-name { top: calc(50% + var(--u) * 6); font-size: calc(var(--u) * 3.4); }
+html.touch .hud-progress { top: calc(50% + var(--u) * 12); width: calc(var(--u) * 36); height: calc(var(--u) * 2.2); }
+
+/* sohbet: kayıt üst solda (dokunuşları engellemez); yazarken üst ortada, klavyenin üstünde kalır */
+html.touch .chat { left: calc(var(--u) * 2 + var(--sa-l)); top: calc(var(--u) * 20 + var(--sa-t)); bottom: auto; width: calc(var(--u) * 46); pointer-events: none; }
+html.touch .chat-log { max-height: calc(var(--u) * 16); padding: calc(var(--u) * 1) calc(var(--u) * 1.6); border-radius: calc(var(--u) * 1.6); font-size: calc(var(--u) * 3); overflow: hidden; }
+html.touch .chat-form { display: none; }
+html.touch .chat.typing { left: 50%; top: calc(var(--u) * 2 + var(--sa-t)); width: calc(var(--u) * 90); transform: translateX(-50%); pointer-events: auto; z-index: 30; }
+html.touch .chat.typing .chat-form { display: block; }
+html.touch .chat-input { padding: calc(var(--u) * 2); border-radius: calc(var(--u) * 1.6); font-size: 16px; } /* 16px: iOS odaklanınca sayfayı yakınlaştırmasın */
+
+/* dairesel menüler + oyuncu listesi */
+html.touch .radial-item { padding: calc(var(--u) * 2.4) calc(var(--u) * 3.6); border-width: calc(var(--u) * 0.45); font-size: calc(var(--u) * 3.4); }
+html.touch .radial-cursor { width: calc(var(--u) * 3.4); height: calc(var(--u) * 3.4); margin: calc(var(--u) * -1.7) 0 0 calc(var(--u) * -1.7); }
+html.touch .radial-hint { bottom: calc(var(--u) * 8); font-size: calc(var(--u) * 3.2); }
+html.touch .plist { width: calc(var(--u) * 100); max-height: calc(var(--u) * 82); padding: calc(var(--u) * 2.6); }
+html.touch .plist-title { font-size: calc(var(--u) * 3.8); }
+html.touch .pl-row { grid-template-columns: 1fr calc(var(--u) * 3) calc(var(--u) * 20); padding: calc(var(--u) * 2) calc(var(--u) * 2.8); font-size: calc(var(--u) * 3.6); }
+html.touch .pl-status, html.touch .plist-hint { font-size: calc(var(--u) * 3); }
+
+/* ---- v4.5: kişiselleştirme (Ayarlar → Mobil): genel boyut / saydamlık, düğme başına konum / boyut / gizleme, sabit joystick, tam ekran düğmesi ---- */
+:root { --ts: 1; --to: 1; }
+.t-btn, .t-hotbar, .t-fs, .t-pad { translate: calc(var(--dx, 0) * var(--u)) calc(var(--dy, 0) * var(--u)); scale: calc(var(--sc, 1) * var(--ts, 1)); }
+.t-hotbar { transform-origin: 50% 100%; }
+.t-hotbar .t-btn { translate: none; scale: none; } /* çanta çubuğunun düğmeleri kutuyla birlikte taşınır / ölçeklenir */
+.t-stick, .t-stick-hint { opacity: var(--to, 1); }
+.t-btn.ux-hide, .t-hotbar.ux-hide, .t-fs.ux-hide { display: none !important; }
+.t-stick.fixed::before { background: rgba(255, 255, 255, 0.09); border-color: rgba(255, 255, 255, 0.38); }
+
+/* sabit (kilitli) joystick tabanı: oyunda görünmez (konumu ölçmek + düzenleme ekranında tutmak için) */
+.t-pad { position: absolute; box-sizing: border-box; left: calc(var(--u) * 6 + var(--sa-l)); bottom: calc(var(--u) * 6 + var(--sa-b)); width: calc(var(--u) * 32); height: calc(var(--u) * 32); display: grid; place-items: center; border-radius: 50%; color: #f2f5fa; visibility: hidden; pointer-events: none; }
+.t-pad.nofix { display: none; }
+.t-pad b { font: 700 calc(var(--u) * 2.8) / 1 system-ui, sans-serif; text-shadow: 0 1px 2px rgba(0, 0, 0, 0.7); }
+
+/* tam ekran düğmesi: sağ alt köşe, menülerde de görünür (dokunmatik modda) */
+.t-fs { position: fixed; z-index: 85; box-sizing: border-box; right: calc(var(--u) * 1.5 + var(--sa-r)); bottom: calc(var(--u) * 1.5 + var(--sa-b)); width: calc(var(--u) * 6.4); height: calc(var(--u) * 6.4); display: grid; place-items: center; border-radius: 50%; color: #f2f5fa; background: rgba(16, 20, 30, 0.55); border: calc(var(--u) * 0.3) solid rgba(255, 255, 255, 0.32); opacity: calc(var(--to, 1) * 0.85); cursor: pointer; touch-action: manipulation; -webkit-tap-highlight-color: transparent; -webkit-user-select: none; user-select: none; }
+.t-fs i { display: block; width: 58%; height: 58%; }
+.t-fs i svg { display: block; width: 100%; height: 100%; }
+.t-fs:active { background: rgba(255, 255, 255, 0.28); }
+html.t-editing .t-fs { touch-action: none; }
+
+/* düzenleme ekranı: dokunmatik katman her şeyin üstüne çıkar, tüm düğmeler görünür */
+#touch.edit { z-index: 80; visibility: visible; }
+#touch.edit .t-look { pointer-events: auto; background: rgba(6, 8, 12, 0.95); }
+#touch.edit .t-stick, #touch.edit .t-stick-hint { display: none; }
+#touch.edit .t-btn { pointer-events: auto; }
+#touch.edit .t-btn b, #touch.edit .t-btn.no-text b { display: block; }
+#touch.edit .t-pad:not(.nofix) { visibility: visible; pointer-events: auto; background: rgba(255, 255, 255, 0.08); border: calc(var(--u) * 0.5) dashed rgba(255, 255, 255, 0.6); }
+#touch.edit .t-btn.sel, #touch.edit .t-hotbar.sel, #touch.edit .t-pad.sel, html.t-editing .t-fs.sel { outline: calc(var(--u) * 0.6) solid var(--accent-2, #ff9f43); outline-offset: calc(var(--u) * 0.6); }
+.ux-off { opacity: 0.35 !important; border-style: dashed !important; }
+.t-edit-bar { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); display: none; flex-wrap: wrap; align-items: center; justify-content: center; gap: calc(var(--u) * 1.4); max-width: calc(100% - var(--u) * 4); padding: calc(var(--u) * 1.6) calc(var(--u) * 2.4); border-radius: calc(var(--u) * 2); background: rgba(14, 17, 26, 0.95); border: 1px solid #3a4254; color: #f2f5fa; pointer-events: auto; }
+#touch.edit .t-edit-bar { display: flex; }
+.t-eb-name { min-width: calc(var(--u) * 30); text-align: center; font: 700 calc(var(--u) * 3.2) / 1.1 system-ui, sans-serif; }
+.t-eb { appearance: none; border: 1px solid #4a5468; background: #1d2230; color: #f2f5fa; border-radius: calc(var(--u) * 1.4); padding: calc(var(--u) * 1.5) calc(var(--u) * 3); font: 700 calc(var(--u) * 3.2) / 1 system-ui, sans-serif; cursor: pointer; }
+.t-eb:active { background: #2b3347; }
+.t-eb:disabled { opacity: 0.4; }
+.t-eb.primary { background: var(--accent, #ff5a4f); border-color: transparent; }
+.t-edit-hint { flex-basis: 100%; text-align: center; color: var(--muted, #9aa4b2); font: 500 calc(var(--u) * 2.6) / 1.2 system-ui, sans-serif; }

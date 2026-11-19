@@ -163,6 +163,27 @@ const BUILDERS = {
     g.add(box(0.012, 0.04, 0.16, 0x2a3140, 0, 0.06, 0.08)); // üst kanat
     return g;
   },
+  sniper() {
+    // keskin nişancı tüfeği: uzun namlu + namlu freni, üstte dürbün, sürgü kolu, ahşap dipçik, katlı iki ayak
+    const g = new THREE.Group();
+    g.add(box(0.05, 0.07, 0.34, 0x2c3138, 0, 0.01, 0.1)); // gövde
+    g.add(box(0.046, 0.052, 0.3, 0x4a3a2a, 0, -0.004, 0.42)); // ön ahşap
+    g.add(cyl(0.011, 0.011, 0.62, 0x15171a, 0, 0.014, 0.58)); // uzun namlu
+    g.add(cyl(0.018, 0.018, 0.07, 0x1a1c20, 0, 0.014, 0.905)); // namlu freni
+    g.add(cyl(0.02, 0.02, 0.3, 0x202327, 0, 0.088, 0.1)); // dürbün tüpü
+    g.add(cyl(0.032, 0.022, 0.07, 0x202327, 0, 0.088, 0.27)); // ön mercek yuvası
+    g.add(cyl(0.022, 0.03, 0.05, 0x202327, 0, 0.088, -0.07)); // göz mercek yuvası
+    g.add(cyl(0.027, 0.027, 0.004, 0x66ccff, 0, 0.088, 0.307, 0.9)); // ön mercek parıltısı
+    g.add(box(0.026, 0.03, 0.024, 0x15171a, 0, 0.058, 0.0), box(0.026, 0.03, 0.024, 0x15171a, 0, 0.058, 0.2)); // dürbün bağları
+    g.add(box(0.05, 0.008, 0.008, 0x9aa4ae, -0.045, 0.02, 0.0), ball(0.014, 0x1c1a18, -0.077, 0.02, 0.0)); // sürgü kolu (sağ yan)
+    g.add(box(0.032, 0.06, 0.07, 0x1a1c20, 0, -0.05, 0.12)); // şarjör
+    g.add(box(0.034, 0.09, 0.045, 0x1a1c20, 0, -0.075, -0.015, 0.25)); // kabze
+    g.add(box(0.046, 0.09, 0.3, 0x4a3a2a, 0, -0.01, -0.22)); // dipçik
+    g.add(box(0.04, 0.03, 0.14, 0x3b2e21, 0, 0.045, -0.2)); // yanak desteği
+    g.add(box(0.05, 0.11, 0.016, 0x1a1a1a, 0, -0.012, -0.378)); // dipçik pedi
+    g.add(box(0.008, 0.008, 0.2, 0x15171a, 0.032, -0.04, 0.5), box(0.008, 0.008, 0.2, 0x15171a, -0.032, -0.04, 0.5), box(0.08, 0.014, 0.014, 0x23262b, 0, -0.03, 0.6)); // katlı ayaklar
+    return g;
+  },
 };
 
 /** Ellerin tuttuğu noktalar (model uzayı: x = SOL, y yukarı, z namlu yönü). L yoksa ekipman tek elle tutulur. */
@@ -174,10 +195,11 @@ export const GRIPS = {
   rocket: { R: [0, -0.14, 0.0], L: [0, -0.14, 0.22] },
   bomb: { R: [-0.095, 0, 0], L: [0.095, 0, 0] },
   plasma: { R: [0, -0.07, 0.0], L: [0, -0.04, 0.24] },
+  sniper: { R: [0, -0.075, -0.012], L: [0, -0.03, 0.33] },
 };
 
 /** Namlu / uç ucunun modeldeki z'si (namlu ışığı, ışın başlangıcı). */
-export const TIPS = { knife: 0.32, pistol: 0.23, rifle: 0.49, taser: 0.52, rocket: 0.7, bomb: 0.1, plasma: 0.48 };
+export const TIPS = { knife: 0.32, pistol: 0.23, rifle: 0.49, taser: 0.52, rocket: 0.7, bomb: 0.1, plasma: 0.48, sniper: 0.94 };
 
 /** Ekipman modeli üretir; bilinmeyen tür için null. */
 export function buildEquipmentMesh(type) {

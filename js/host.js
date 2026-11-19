@@ -20,10 +20,10 @@ const V = GAME_CONFIG.voice;
 
 export const DEFAULT_SETTINGS = {
   roundTime: GAME_CONFIG.rounds.roundTime,
-  roles: {}, // host'un rol seçimi: { detective: 2 (en çok 2), medium: 0 (oyunda yok), lover: 2 (en çok 2 çift) } — eksik = otomatik (bkz. roles.js → roleLimits, loverLimits)
+  roles: {}, // host'un rol seçimi: { detective: 2 (en çok 2), medium: 0 (oyunda yok), lover: 2 (en çok 2 çift) } — eksik = otomatik (bkz. roles.js → roleLimits; lover = ÇİFT sayısı)
   deadChat: 'dead', // 'dead' = ölü mesajlarını yalnızca ölüler görür, 'all' = herkes görür
   debug: false, // debug odası: roller elle seçilir, bot eklenebilir, tur kendiliğinden bitmez
-  troll: true, // TrollHacks: misafirler konsoldan açıp F2 araçlarını kullanabilir (host lobide kapatabilir; bkz. troll.js)
+  troll: true, // TrollHacks: misafirler konsoldan açıp F2 araçlarını kullanabilir (false = izin yok; lobideki seçici v4.4'te kaldırıldı; bkz. troll.js)
 };
 
 const cleanText = (s, n) => String(s ?? '').replace(/[\u0000-\u001f<>]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, n);
@@ -63,6 +63,7 @@ export class HostGame {
       idn: {},
       spawns: {},
       debugRoles: {}, // debug: { oyuncuId: rolId } (bir sonraki tur / canlı rol değişimi)
+      debugLovers: [], // debug odası: elle kurulan sevgili çiftleri [a1, b1, a2, b2, ...] (tur yenilenince de kalır)
       botPos: {}, // debug: { botId: [x, y, z, yaw] } botlar bulundukları yerde sabit durur
       dbg: {}, // debug: { oyuncuId: { god, ghost, noclip, mute, items } } — turlar arasında kalır
       trolls: {}, // TrollHacks'i konsoldan açan misafirler: { oyuncuId: true }
@@ -134,7 +135,10 @@ export class HostGame {
       knifeAway: st.role === 'killer' && S.knife.s !== 'held',
       mediumTarget: st.mediumTarget,
       mediumMutual: st.mediumMutual,
+      mediumPick: (S.nightNo || 0) > 0 && st.mediumNight === S.nightNo ? st.mediumPick : null, // bu gece seçtiği kişi (gece başına 1 kişi)
       s2gUsed: st.role === 's2g' && st.s2gNight === S.nightNo, // bu gece fermuarını kullandı mı
+      umaciLeft: Math.round((st.umaciLeft || 0) * 10) / 10, // Umacı: görünmezlikten kalan süre (sn)
+      umaciUsed: st.role === 'umaci' && st.umaciNight === (S.nightNo || 0), // Umacı: bu gece yeteneğini kullandı mı
       items: st.items || [], // gizli eşyalar (slot 3, 4, 5 … sırasıyla)
       slot: st.slot || 1,
       god: !!S.dbg?.[id]?.god,
@@ -427,13 +431,12 @@ export class HostGame {
     return this.rounds.startRound();
   }
 
-  /** Bir oyuncunun (ya da botun) rolünü seçer. Tur sürüyorsa anında uygulanır, değilse tur başında geçerli olur. */
-  debugSetRole(id, roleId) {
+  /** Rolü uygular (yayın yapmaz): kayıt + (tur sürüyorsa) taze oyuncu durumu. Dönüş: tur sürerken uygulandı mı. */
+  _applyRole(id, roleId) {
     const S = this.state;
-    if (!this.cheat || !ROLES[roleId] || !this.connectedIds().includes(id)) return;
     S.debugRoles[id] = roleId;
     const st = S.players[id];
-    if (!st || st.spectator || (S.phase !== 'playing' && S.phase !== 'reveal')) return;
+    if (!st || st.spectator || (S.phase !== 'playing' && S.phase !== 'reveal')) return false;
     const fresh = newPlayerState(roleId);
     fresh.alive = st.alive;
     fresh.hp = st.alive ? st.hp : 0;
@@ -447,8 +450,64 @@ export class HostGame {
       this.broadcast({ t: 'knife', s: 'held' });
     }
     if (S.baiterId === id) S.baiterId = null;
+    return true;
+  }
+
+  /** Bir oyuncunun (ya da botun) rolünü seçer. Tur sürüyorsa anında uygulanır, değilse tur başında geçerli olur. Aşık rolü otomatik eşlenir (bkz. _relinkLovers). */
+  debugSetRole(id, roleId) {
+    if (!this.cheat || !ROLES[roleId] || !this.connectedIds().includes(id)) return;
+    if (!this._applyRole(id, roleId)) return;
+    this._relinkLovers();
     this.sendVisToAll();
     this.sendMe(id);
+  }
+
+  /**
+   * Aşık rolündeki oyuncuları eşler: ikisi de hâlâ Aşık olan kurulu çiftler korunur, eşsiz Aşıklar sırayla (oyuncu sırasıyla) birbirine bağlanır.
+   * Rol değişince çağrılır: rolü Aşık'tan çıkanın çifti bozulur (eşi eşsiz kalır ya da başka eşsiz Aşıkla eşleşir). Debug odasında çiftler sonraki turlara taşınır (S.debugLovers).
+   */
+  _relinkLovers() {
+    const S = this.state;
+    if (S.phase !== 'playing' && S.phase !== 'reveal') return;
+    const isL = (id) => S.players[id]?.role === 'lover' && !S.players[id].spectator;
+    const old = S.lovers || [];
+    const next = [];
+    for (let i = 0; i + 1 < old.length; i += 2) if (isL(old[i]) && isL(old[i + 1])) next.push(old[i], old[i + 1]);
+    const free = Object.keys(S.players).filter((id) => isL(id) && !next.includes(id));
+    for (let i = 0; i + 1 < free.length; i += 2) next.push(free[i], free[i + 1]);
+    S.lovers = next.length ? next : null;
+    if (this.debug) S.debugLovers = next.slice();
+  }
+
+  /**
+   * Sevgili çifti kur / kaldır (hile & debug paneli). b verilirse a ile b'nin ROLÜ "Aşık" olur ve ikisi birbirine bağlanır
+   * (ikisinin eski bağları kopar; eski eşleri eşsiz Aşık kalır ya da başka eşsiz Aşıkla eşleşir). b yoksa a'nın çifti bozulur: ikisi de Masum olur.
+   */
+  debugSetLover(a, b = null) {
+    const S = this.state;
+    const usable = (id) => this._dbgOk(id) && !!S.players[id] && !S.players[id].spectator;
+    if ((S.phase !== 'playing' && S.phase !== 'reveal') || !usable(a)) return false;
+    if (b && (a === b || !usable(b))) return false;
+    const touched = [a];
+    if (b) {
+      touched.push(b);
+      this._applyRole(a, 'lover');
+      this._applyRole(b, 'lover');
+    } else {
+      const p = loverPartner(S.lovers, a);
+      if (p) touched.push(p);
+      for (const id of touched) this._applyRole(id, 'civilian');
+    }
+    // a / b'nin eski bağlarını kopar, yeni bağı ekle; sonra eşsiz Aşıkları tamamla
+    const keep = [];
+    const old = S.lovers || [];
+    for (let i = 0; i + 1 < old.length; i += 2) if (!touched.includes(old[i]) && !touched.includes(old[i + 1])) keep.push(old[i], old[i + 1]);
+    if (b) keep.push(a, b);
+    S.lovers = keep.length ? keep : null;
+    this._relinkLovers();
+    this.sendVisToAll();
+    for (const id of touched) this.sendMe(id);
+    return true;
   }
 
   /**
@@ -482,6 +541,7 @@ export class HostGame {
       S.spawns[id] = p.slice();
       this.seedBot(id);
       this.broadcast({ t: 'bot', id, p, idn: S.idn[id] });
+      this._relinkLovers(); // Aşık rolüyle eklenen bot, eşsiz bir Aşıkla eşlenir
       this.sendVisToAll();
     }
     return id;
@@ -646,7 +706,7 @@ export class HostGame {
     if (was !== on) this.sendVis(from);
   }
 
-  /** Troll işlemi: rol · işaret · öldür · patlat · diriltme · yanına git · önüme getir · ekrana yazı · gizli eşya. Bot ekleme / tur yenileme YOKTUR. */
+  /** Troll işlemi: rol · sevgili · işaret · öldür · patlat · diriltme · yanına git · önüme getir · ekrana yazı · gizli eşya. Bot ekleme / tur yenileme YOKTUR. */
   trollOp(from, d) {
     if (!this.trollOk(from) || !this.connectedIds().includes(from)) return false;
     const a = Array.isArray(d?.a) ? d.a : [];
@@ -657,6 +717,7 @@ export class HostGame {
     try {
       switch (d.op) {
         case 'role': this.debugSetRole(id, s1); break;
+        case 'lover': ok = this.debugSetLover(id, s1); break; // s1 = eş (yoksa a'nın bağı kalkar)
         case 'flag': this.debugFlag(id, s1, !!a[2]); break;
         case 'kill': this.debugKill(id); break;
         case 'explode': this.debugExplode(id); break;
@@ -738,6 +799,7 @@ export class HostGame {
         ar: d.ar ? 1 : 0, // havada (animasyon)
         cl: d.cl ? 1 : 0, // tırmanıyor (animasyon)
         iv: S.dbg?.[id]?.ghost ? 1 : 0, // debug: görünmez (yalnızca host belirler)
+        um: S.phase === 'playing' && st?.umaciLeft > 0 ? 1 : 0, // Umacı: görünmezlik açık (yalnızca host belirler)
       };
       n++;
     }

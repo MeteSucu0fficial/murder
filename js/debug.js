@@ -2,9 +2,11 @@
 //  • DEBUG ODASI (yalnızca host): rol değiştir, bot ekle / sil, turu yenile + seçili oyuncu işlemleri.
 //  • NORMAL OYUN: konsola  TrollHacks.enabled = true;  yazan herkes (host izin veriyorsa) aynı paneli açar; BOT EKLEME / tur yenileme / lobi yoktur (bkz. troll.js).
 // Seçili oyuncu işlemleri: noclip · görünmezlik · ölümsüzlük · susturma · öldür · diriltme (doğma noktasında / cesedinde) · patlat · yanına git ·
-// önüme getir · ekrana yazı (ona / herkese) · gizli eşya ver (roketatar, bomba, plazma tüfeği: slot 3, 4, 5 verilme sırasına göre).
+// önüme getir · ekrana yazı (ona / herkese) · gizli eşya ver (roketatar, bomba, plazma tüfeği, sniper: slot 3, 4, 5, 6 verilme sırasına göre).
 // Ayrıca X-ray (duvar arkasındaki oyuncular + roller) ve çarpışma görünümü (eski F3 tuşu kaldırıldı: yalnızca bu panelde).
 //  • Debug tuşu (varsayılan F2) paneli açar / kapatır. Açıkken fare serbesttir, kamera olduğu yerde durur.
+//  • Aşık artık bir ROL: rol listesinden "Aşık" seçilen oyuncular otomatik ikişer ikişer eşlenir. "Sevgililer (Aşık)" bölümü belirli bir çifti kurar: ♥ Bağla ikisini de Aşık yapıp birbirine bağlar,
+//    Kaldır ikisini Masum yapar. Debug odasında çiftler tur yenilenince de kalır.
 //  • Her oyuncunun yanında oyun içi kimliği yazar: renk noktası + NATO adı (gerçek adı soluk).
 //  • İşlemler TrollHacks.op ile gider: host'ta doğrudan uygulanır, misafirde host'a istek olur (roller / durumlar host'tan gelir).
 import { GAME_CONFIG, KEYS } from './config.js';
@@ -15,7 +17,7 @@ import { TrollHacks } from './troll.js';
 import { colorCss, h, isBotId, store } from './util.js';
 
 /** Debug rol seçicilerinin sırası (lobi, menü ve panel aynı listeyi kullanır). */
-export const DEBUG_ROLE_ORDER = ['civilian', 'killer', 'mafia', 's2g', 'detective', 'civilPolice', 'escort', 'sleepwalker', 'bomber', 'medium'];
+export const DEBUG_ROLE_ORDER = ['civilian', 'killer', 'mafia', 's2g', 'detective', 'civilPolice', 'escort', 'sleepwalker', 'bomber', 'medium', 'umaci', 'lover'];
 export const DEBUG_ROLE_OPTIONS = DEBUG_ROLE_ORDER.map((r) => [r, ROLES[r].name]);
 
 export class DebugPanel {
@@ -94,7 +96,8 @@ export class DebugPanel {
       const f = i ? `${i.god ? 1 : 0}${i.ghost ? 1 : 0}${i.noclip ? 1 : 0}${i.mute ? 1 : 0}` : '';
       return `${p.id}:${i?.role || ''}:${i?.alive ? 1 : 0}:${f}:${(i?.items || []).join('+')}:${ctx.players.get(p.id)?.identity?.label || ''}`;
     });
-    return `${rows.join('|')}|${TrollHacks.xray ? 1 : 0}${ctx.world.collision.debugOn ? 1 : 0}`;
+    const love = TrollHacks.lovePairs().map((p) => p.join('&')).join(',');
+    return `${rows.join('|')}|${love}|${TrollHacks.xray ? 1 : 0}${ctx.world.collision.debugOn ? 1 : 0}`;
   }
 
   roleSelect(cur, onChange, cls = '') {
@@ -118,6 +121,12 @@ export class DebugPanel {
       idn?.color != null ? h('i', { class: 'dbg-dot', style: { background: colorCss(idn.color) } }) : null, // kimlik rengi sayı (0xRRGGBB)
       idn?.label ? h('b', {}, idn.label) : null,
       h('span', { class: idn?.label ? 'dbg-real' : '' }, real));
+  }
+
+  /** Kimlik adı (NATO adı varsa) ya da gerçek ad; bilinmiyorsa "—". */
+  nameOfId(id) {
+    const p = this.rows().find((r) => r.id === id);
+    return p ? this.plainName(p) : '—';
   }
 
   /** <option> için düz metin: "🤖 Alpha (Kırmızı) — Mete (sen)". */
@@ -193,7 +202,47 @@ export class DebugPanel {
       h('div', { class: 'dbg-text' }, text),
       h('div', { class: 'dbg-actions' }, this.btn('Ona yaz', () => send(id)), this.btn('Herkese yaz', () => send(null))),
       h('h4', {}, 'Gizli eşyalar (slot sırası verilme sırasına göre)'),
-      h('div', { class: 'dbg-actions' }, item('rocket'), item('bomb'), item('plasma')),
+      h('div', { class: 'dbg-actions' }, item('rocket'), item('bomb'), item('plasma'), item('sniper')),
+    ];
+  }
+
+  // ------------------------------------------------------------------ sevgililer (Aşık)
+  /**
+   * Sevgili çiftleri: kurulu çiftler (kaldır) + yeni çift kur (iki oyuncu seç → ♥ Bağla: ikisinin rolü Aşık olur). Biri ölürse eşi de ölür.
+   * Bir oyuncu en çok bir çifttedir (yeni bağ eskisini koparır). Kaldır: çiftin iki oyuncusu da Masum olur.
+   */
+  loverBlock() {
+    const rows = this.rows();
+    const find = (id) => rows.find((p) => p.id === id);
+    const pairs = TrollHacks.lovePairs().filter(([a, b]) => find(a) && find(b));
+    if (!find(this.loverA)) this.loverA = rows[0]?.id || null;
+    if (!find(this.loverB) || this.loverB === this.loverA) this.loverB = rows.find((p) => p.id !== this.loverA)?.id || null;
+    const pick = (cur, onPick) => {
+      const s = h('select', { class: 'input mini' }, rows.map((p) => h('option', { value: p.id }, this.plainName(p))));
+      if (find(cur)) s.value = cur;
+      s.onchange = () => onPick(s.value);
+      return s;
+    };
+    const A = pick(this.loverA, (v) => { this.loverA = v; });
+    const B = pick(this.loverB, (v) => { this.loverB = v; });
+    const link = () => {
+      if (!A.value || !B.value || A.value === B.value) {
+        ctx.ui.toast('İki farklı oyuncu seç.');
+        return;
+      }
+      TrollHacks.op('lover', A.value, B.value);
+      this.render();
+    };
+    return [
+      h('h4', {}, 'Sevgililer (Aşık)'),
+      pairs.length
+        ? h('div', { class: 'dbg-list' }, pairs.map(([a, b]) => h('div', { class: 'dbg-row' },
+          h('span', { class: 'dbg-heart' }, '♥'), this.nameTag(find(a)), this.nameTag(find(b)),
+          this.btn('Kaldır', () => { TrollHacks.op('lover', a, null); this.render(); }, 'danger'))))
+        : h('small', { class: 'dbg-none' }, 'Şu an sevgili çifti yok.'),
+      h('div', { class: 'dbg-add' }, A),
+      h('div', { class: 'dbg-add' }, B),
+      h('div', { class: 'dbg-actions' }, this.btn('♥ Bağla', link, 'primary')),
     ];
   }
 
@@ -235,6 +284,7 @@ export class DebugPanel {
       return h('div', { class: `dbg-row${p.id === ctx.myId ? ' me' : ''}` },
         this.nameTag(p),
         h('span', { class: `dbg-st ${alive ? 'alive' : 'dead'}`, title: alive ? 'Hayatta' : 'Ölü' }, alive ? '✔' : '☠'),
+        TrollHacks.isLover(p.id) ? h('span', { class: 'dbg-heart', title: `Sevgilisi: ${this.nameOfId(TrollHacks.partnerOf(p.id))}` }, '♥') : null,
         this.roleSelect(cur, (r) => TrollHacks.op('role', p.id, r)),
         dbg && bot ? this.btn('Sil', () => { ctx.host.debugRemoveBot(p.id); this.render(); }, 'danger') : null);
     });
@@ -255,6 +305,7 @@ export class DebugPanel {
       ...this.targetBlock(),
       h('h4', {}, 'Oyuncular ve roller'),
       h('div', { class: 'dbg-list' }, players),
+      ...this.loverBlock(),
       ...(dbg ? this.botBlock() : []),
       h('h4', {}, 'Görünüm'),
       h('div', { class: 'dbg-actions' },

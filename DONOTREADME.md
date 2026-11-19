@@ -12,8 +12,11 @@ Evi Blender'da modelleyip `assets/house.glb` olarak koyarsın; oyun nesneleri **
 **v4'te eklenenler:** **zorunlu roller** (Katil + Dedektif her turda vardır) · yeni kötü rol **S2G** (gece fermuarla öldürür, ceset zıplar) · sessiz modda **yalnızca dedektif konuşur** (normal ↔ bağırma, mikrofon aç/kapa) · **kayma yok**, merdiven/rampadan otomatik çıkış · **eğilme (Ctrl)** · **Ctrl+W** ile sekme kapanmasına karşı koruma · oyuncular artık cesetle aynı **insan modeli** (kol, bacak, yürüme/eğilme animasyonu) · baktığın kişinin/cesedin **adı** nişangâhın altında (kendi renginde) · sol altta adın, sağ altta rolün · tur başında **5 sn siyah rol ekranı** (rol, bildiğin kişiler, rol açıklaması) · **Baiter / Aşık** ikincil rol olarak rolünün yanında · Uyurgezer uyurken siyah ekran · Q menüsünde çalan ses bitmeden aynı ses tekrar basılamaz · tutulan eşya nişangâhın hizasında durur.
 **Son eklenenler:** **merdiven** (`Ladder_*`: değip **W / Boşluk** basılı tut, tırman) · **serbest dönen tablolar** (`MidPaint_*`: pivotları etrafında, nereden ve ne kadar sert değdiğine göre döner; atılan/düşen eşyalar da döndürür) · **tüm tablolar katıdır** (içinden geçilmez) · **TAB listesinde kimsenin rolü görünmez**.
 **v4.2'de eklenenler:** tablolar yalnızca **kendi Y ekseninde** döner · **menziller kısaldı** (S2G aynı) · taramalı kısaldı, **tabanca + taramalı iki elle**, **elektrikli sopa**, düzeltilmiş bıçak tutuşu · **TAB'da sol tıkla Baiter ver** · karakterde **yalnızca üst renkli**, bacaklar gri, kafa açık ten / kahverengi · **cesetler kendi içinden geçmez** · yeni tutuş / saldırı **animasyonları** · **büyütülmüş örnek ev** + gizli tüneller (tabloların arkası) · **Bombacı anında patlar** · **C basılı tut: ses seviyesi dairesi** · debug: **noclip, görünmezlik, ölümsüzlük, öldür, diriltme (doğma noktası / ceset), ekrana yazı (herkese / tek kişiye), susturma, patlat, yanına git, önüme getir, gizli eşyalar (roketatar, bomba, plazma)** · **`Collision_*` nesneleri görünür** (yarı saydam turuncu; v4.3'te F3 kaldırıldı: yalnızca debug panelinde).
-**v4.3'te eklenenler:** **mobil destek kaldırıldı** (şimdilik yalnızca klavye + fare) · karakterlere **yüz** (`assets/faces`: PNG / SVG, tur başında rastgele; PNG'nin arka planı şeffafsa kafanın ten rengi görünür; saç / göz / kaş modeli kaldırıldı) · **sevgililer** artık lobideki **Rol ayarları**ndan (Kapalı / Otomatik / 1–3 çift) · **TrollHacks:** normal oyunda konsola `TrollHacks.enabled = true;` yaz → **F2** paneli (bot ekleme hariç her şey) · panelde ve debug'ta oyuncuların **oyun içi adı (NATO) + rengi** · **X-ray** (duvar arkasındaki oyuncular + roller; debug ve TrollHacks) · **F3 kaldırıldı**, çarpışma görünümü yalnızca panelde · **ışık havuzu** (sana en yakın ışıklar gerçek ışık, daha az GPU yükü) · Ayarlar'da **Işık efektleri** aç / kapa (kapalıyken ortam düz aydınlatılır) · ışıklar kapalıyken **yakın görüş** · uzak oyuncuların fener gölgeleri yarı maliyetle.
+**v4.3'te eklenenler:** **mobil destek kaldırıldı** (v4.4'te dokunmatik arayüz yeniden eklendi) · karakterlere **yüz** (`assets/faces`: PNG / SVG, tur başında rastgele; PNG'nin arka planı şeffafsa kafanın ten rengi görünür; saç / göz / kaş modeli kaldırıldı) · **sevgililer** artık lobideki **Rol ayarları**ndan (Kapalı / Otomatik / 1–3 çift) · **TrollHacks:** normal oyunda konsola `TrollHacks.enabled = true;` yaz → **F2** paneli (bot ekleme hariç her şey) · panelde ve debug'ta oyuncuların **oyun içi adı (NATO) + rengi** · **X-ray** (duvar arkasındaki oyuncular + roller; debug ve TrollHacks) · **F3 kaldırıldı**, çarpışma görünümü yalnızca panelde · **ışık havuzu** (sana en yakın ışıklar gerçek ışık, daha az GPU yükü) · Ayarlar'da **Işık efektleri** aç / kapa (kapalıyken ortam düz aydınlatılır) · ışıklar kapalıyken **yakın görüş** · uzak oyuncuların fener gölgeleri yarı maliyetle.
 **v4.3.1'de düzeltilenler:** lobiyi ve rol ayarlarını çökerten hata (`Sevgililer` satırı yanlış tabloya bakıyordu) giderildi → oda açılınca hata yok, host yine **hangi rolden kaç tane** olacağını seçebilir · davet bağlantısı artık **`sayfa#KOD`** (GitHub'da `?oda=KOD` kabul edilmiyordu; eski `?oda=` bağlantıları da çalışır) · **Işık efektleri kapalıyken** de oda ışıkları kapanınca **karanlık** olur (fener çalışır) · karanlıkta **yakın görüş mesafesi yarıya** indi (8 → 4 m) · başka oyuncuların başında **fener konisi yok**, yalnızca ışık.
+**v4.4'te eklenenler:** **ölüm itmesi:** ölen oyuncu hemen yere yığılmaz; vurulan taraftan silaha göre bir kuvvetle itilir (yürüyüş hızın da eklenir; `corpse.stumble / stumbleLift / momentum`) · **ölünce görünmez dünya:** siyah arka plan, **üçüncü şahıs** kamera, yalnızca **ragdoll cesetler** görünür (çarpışma görünmez haritaya işlemeye devam eder; `deadView.*`); **ekrana tıkla / dokun** → birinci şahıs **oyuncu izleme** (v4.5: geri dönüş yok; **sol tık = sonraki, sağ tık = önceki** oyuncu) · **zıpla + eğil:** gövde aşağı inmez, **bacaklar yukarı çekilir** (CS tarzı; `player.airCrouchLift`) · çarpışma artık **silindir** (düz taban / tavan; `collision.capFlat`, `1` = eski kapsül) · **Medyum** her gece yalnızca **1 kişi** için kullanılabilir · **merdivende ortalanma yok** (tırmanırken yana çekilmezsin) · lobideki **TrollHacks seçici kaldırıldı** · **sessiz modda** dedektifin de rastgele **kod adı + rengi** olur · **mobil (dokunmatik) arayüz geri geldi:** yalnızca UI katmanı, **çoklu dokunuş**, her ekranda aynı oransal boyut (aşağıda "Mobil kontroller").
+**v4.5'te eklenenler:** yeni rol **Umacı** (gece başına 1 kez **X: 60 sn görünmez**, oyuncuların içinden geçer; hareketsizken tamamen görünmez, hareket edince Wraith tarzı **dalgalanma**; varsayılan takım Masum: `roles.js → UMACI_TEAM`) · ölünce izleme **geri dönüşsüz**: boşluk kamerasında tıkla → birinci şahıs izleme, **sol tık sonraki / sağ tık önceki** oyuncu · **Aşıklar** artık TrollHacks / debug panelinden de seçilir (çift bağla / kaldır) · **elektrikli sopa** daha hızlı (bekleme 1,6 → 0,8 sn) · merdivende **baktığın yöne göre** tırmanış (yukarı bakıp W = yukarı, aşağı bakıp W = aşağı; yalnızca dikey hareket) · **Ayarlar → Mobil:** mobil kontrolleri aç / kapa, düğme boyutu / saydamlığı / bakış hassasiyeti, **sabit (kilitli) ya da serbest joystick** + **koşu kilidi**, **düğme düzenleyici** (sürükle, boyutlandır, gizle, sıfırla) · sağ altta **tam ekran düğmesi** (menülerde de) · **düzeltmeler:** mobilde **"Baiter ver"** çalışmıyordu (dokunmatik katman listeyi yutuyordu) · **Uyurgezer** artık dünyanın dışına ışınlanmıyor (rastgele varış noktası duvar / ev dışı için doğrulanır, geçersizse doğma noktasına düşer).
+**v4.6'da eklenenler:** **Aşık artık birincil rol** (ikincil değil): lobideki **Rol ayarları**nda diğer roller gibi durur (Kapalı / Otomatik / Max 1–3 **çift**), **2 kişilik çift** olarak verilir ve koltuk alır (eşsiz Aşık kalmaz); ikisi de Masum Takımdadır, biri ölürse diğeri de ölür · debug / TrollHacks rol listesinde de **Aşık** var (rolü Aşık yapılanlar otomatik eşlenir) · yeni gizli eşya **Sniper tüfeği** (anında vuran ışın, tek atışta öldürür, 5 mermi, 120 m; **sağ tık basılı = dürbün / zoom**, mobilde **Dürbün** düğmesi) ve **6. eşya slotu** · **Umacı dalgalanması** artık sahne ışığıyla aydınlanan çok saydam bir malzeme: **karanlıkta görünmez**, ışıkta çok hafif belli olur (`abilities.umaci.shimmer`) · **Uyurgezer** ışınlanması yenilendi: odanın içinde ışınlarla geçerli nokta aranır, olmazsa başka oda denenir; yalnızca hiçbir odada yer yoksa doğma noktasına düşer (tarayıcı konsolunda `[Uyurgezer] … geçerli nokta bulunamadı (…)` uyarısı yazar).
 
 ---
 
@@ -55,10 +58,10 @@ Tüm tuşlar **Ayarlar → Tuşlar** bölümünden değiştirilebilir (bir eylem
 
 | Tuş | İşlev |
 |---|---|
-| **W A S D** | Hareket · **Shift** koş · **Boşluk** zıpla · **Ctrl** (basılı) **eğil** · merdivene değip **W / Boşluk** basılı tut: **tırman** (**S** iner, **Ctrl** bırakır) |
+| **W A S D** | Hareket · **Shift** koş · **Boşluk** zıpla · **Ctrl** (basılı) **eğil** · merdivene değip **W / Boşluk** basılı tut: **tırman** (v4.5: **baktığın yöne göre** — yukarı bakıp W yükselir, aşağı bakıp W iner; **S** tersine; **Ctrl** bırakır) |
 | **Fare** | Bakış (birinci şahıs; üçüncü şahıs kamera yoktur) |
 | **E** | Baktığın şeyle etkileşim: kapı, şalter, buton, **eşya al/bırak**, **ceset tut/bırak** (bakılan uzuvdan) |
-| **1 / 2** | Boş el / Ekipman (silah, bıçak, elektrikli sopa) · **3 / 4 / 5** debug'dan verilen **gizli eşyalar** (verilme sırasına göre; aşağıda "Gizli eşyalar") |
+| **1 / 2** | Boş el / Ekipman (silah, bıçak, elektrikli sopa) · **3 / 4 / 5 / 6** debug'dan verilen **gizli eşyalar** (verilme sırasına göre; aşağıda "Gizli eşyalar") |
 | **Sol tık** | Ekipmanla saldır · eşya tutuyorsan **fırlat** · boş elle tabloya tıkla |
 | **Sağ tık** | Katilde bıçak fırlat · eşya tutuyorsan **döndür** (basılı tut + fare) |
 | **R** | Doldur (reload) |
@@ -68,8 +71,34 @@ Tüm tuşlar **Ayarlar → Tuşlar** bölümünden değiştirilebilir (bir eylem
 | **TAB** (basılı) | Oyuncu listesi: ad, konuşma ışığı, durum (**kimsenin rolü görünmez**) · katil bir satıra **sol tıklayınca** "Baiter ver" menüsü açılır |
 | **V** | Bas-konuş · **M** mikrofon aç/kapa · **sessiz modda** yalnızca **dedektif** konuşur: V gerekmez, mikrofon açıkken konuşur |
 | **C** (basılı) | **Ses seviyesi dairesi:** C'ye basılı tut → 3 seçenekli daire açılır (solda **Fısıltı** 3 m · üstte **Normal** 8 m · sağda **Bağırma** 18 m); fareyi bir seçeneğe çek, C'yi bırak → seviye seçilir (tuşa basıp bırakmak artık seviye değiştirmez). Sessiz modda dedektifin yalnızca **Normal / Bağırma** seçeneği vardır. |
-| **Enter** | Sohbet · **← / →** ölüyken izlenen oyuncuyu değiştir · **Esc** duraklat |
+| **Enter** | Sohbet · ölüyken izlerken: **sol tık / →** sonraki, **sağ tık / ←** önceki oyuncu · **Esc** duraklat |
 | **F2** | Debug paneli (debug odasının host'unda) · normal oyunda konsola `TrollHacks.enabled = true;` yazınca **TrollHacks paneli** (bölüm 4) |
+
+### Mobil (dokunmatik) kontroller (v4.4; kişiselleştirme v4.5)
+
+Dokunmatik cihazda (telefon / tablet) arayüz **kendiliğinden** açılır. Masaüstünde denemek için **Ayarlar → Mobil → Mobil kontroller → Açık** ya da adrese `?touch=1` ekle (`?touch=0` kapatır). Oyun **yatay** ekranda oynanır (dikeyde "Telefonu yatay çevir" uyarısı çıkar). Hepsi **yalnızca UI katmanıdır**: oyun mantığı değişmez; düğmeler sanal tuş / sanal fare basar (`input.js` köprüsü), bu yüzden menüler, dairesel menüler, oyuncu listesi ve sohbet masaüstüyle **aynı kodla** çalışır. **Çoklu dokunuş:** her parmak ayrı izlenir (aynı anda yürü + bak + ateş et + zıpla). Her ölçü `--u` biriminde (ekran yüksekliğinin %1'i; 16:9'dan dar ekranda genişliğe göre) olduğu için düğmeler **her ekranda aynı oransal büyüklükte** görünür.
+
+| Bölge / düğme | İşlev |
+|---|---|
+| **Sol yarı (sürükle)** | Yüzen analog çubuk (Ayarlar → Mobil'den **sabit / kilitli** yapılabilir): parmağını koyduğun yerde belirir; **ucuna kadar it → koşar**, daha az it → yürür |
+| **Sağ yarı (sürükle)** | Bakış (Ayarlar'daki hassasiyet çarpanı geçerli). Ölüyken: **dokun** → izlemeye geç (geri dönüş yok), izlerken **dokun = sonraki oyuncu** (◀ ▶ düğmeleri: önceki / sonraki) · **iki parmak** → uzaklaştır / yakınlaştır |
+| **Ateş** (sağ alt, büyük) | Sol tık: saldır / ateş / eşya fırlat. **Basılı tutup kaydırırsan** nişan da alırsın |
+| **Zıpla · Eğil** | Eğil **aç/kapa** düğmesidir (dokun: eğil, tekrar dokun: kalk) |
+| **Etkileşim** (turuncu; bir şeye bakınca belirir) | E: kapı, eşya al/bırak, ceset tut… düğmenin yazısı ne yapacağını söyler |
+| **Fırlat / Döndür · Doldur · Yetenek** | Sağ tık (bıçak fırlat; eşya tutarken **basılı tut + öbür parmakla kaydır = döndür**) · R · X — yalnızca işe yaradıklarında görünür |
+| **Alt orta çanta çubuğu** | El · ekipman · gizli eşyalar (1–5) |
+| **Sol kenar** | Fener · mikrofon (sesli modda bas-konuş **aç/kapa**; "açık mikrofon" ayarındaysa sustur/aç) |
+| **Sağ üst** | ☰ duraklat / ayarlar · sohbet · oyuncu listesi (aç/kapa; kapatmak için boş yere dokun) · **Ses** ve **Seviye** (**basılı tut, parmağı kaydır, bırak** = Q / C dairesi) |
+| **Sağ alt köşe** | **Tam ekran** düğmesi (menülerde de görünür). iPhone Safari tam ekran API'sini desteklemez: ipucu çıkar ("Ana Ekrana Ekle" ile tam ekran oynanır) |
+
+Ayarlamak için: `js/touch.js` başındaki `LOOK_GAIN` (bakış hızı), `STICK_R` (çubuk boyu), `RUN_AT` (koşma eşiği); düğme yerleri / boyları `style.css` içindeki `.tb-*` satırları (birim `--u`); hangi düğmenin ne zaman göründüğü `js/touchButtons.js`.
+
+**Ayarlar → Mobil (v4.5):**
+* **Mobil kontroller:** Otomatik / Açık / Kapalı. Kapalıyken ekran düğmeleri kalkar (tabletle klavye + fare kullanırken işe yarar); telefonda kapatırsan geri açmak için ana menü → Ayarlar → Mobil.
+* **Düğme boyutu · saydamlık · bakış hassasiyeti** kaydırıcıları: anında uygulanır, tarayıcıda saklanır.
+* **Joystick:** **Serbest** (parmağın nereye değerse orada çıkar) ya da **Sabit / kilitli** (hep aynı yerde durur; yalnızca tabanına dokununca tutulur, ekranın geri kalanı bakış alanıdır; yeri ve boyutu düzenleyiciden ayarlanır). **Koşu kilidi:** çubuğu sonuna itince başlayan koşu, çubuk merkeze yaklaşana kadar sürer (parmağı uçta tutmak gerekmez).
+* **Düğme düzenini düzenle:** tüm düğmeler görünür; **sürükleyerek taşı**, dokunup seç → **− / +** ile boyutlandır (%50–%220), **Gizle / Göster**, **Sıfırla**, **Bitti**. Menü (☰) düğmesi ve joystick gizlenemez (ayarlara dönüş yolu kapanmasın). Konumlar `--u` biriminde saklanır: her ekranda aynı oransal yerde durur; çanta çubuğu tek parça taşınır.
+* Varsayılanlar: `js/touch.js → TOUCH_DEFAULTS`; kayıt: `ctx.settings.touchUI` (tarayıcıda).
 
 **Bakışa göre etkileşim:** Etkileşim ve eşya alma mesafeye göre değil **nişangâhın baktığı nesneye** göre çalışır. Ekranın ortasındaki nokta, bir şeye bakınca halkaya dönüşür ve altta ne yapacağın yazar. Duvarın arkasındaki şeyler seçilemez. Azami erişim `config.js → GAME_CONFIG.interaction.reach` (3,2 m).
 
@@ -103,12 +132,12 @@ Tam ekranı istemezsen **Ayarlar → Genel → "Ctrl+W sekmeyi kapatmasın"** ku
 
 **Karakter modeli:** Oyuncular artık cesetlerle **aynı insan modelidir**: kafa, gövde, kollar, bacaklar. Yürürken/koşarken bacaklar adım atar (zemine basan IK), kollar karşı yönde sallanır, eğilince model çömelir, elindeki ekipman sağ elde durur ve bakış yönüne göre kalkar. Ceset olunca aynı model fizikle yığılır. Kodu: `js/humanAvatar.js` (görünüm/animasyon) + `js/avatarPose.js` (tutuşlar, saldırı hareketleri) + `js/ragdoll.js` (ölçüler `TEMPLATE`).
 * **Renkler:** yalnızca **üst** (gövde + kollar) oyuncunun rengindedir (sesli modda Irgat grisi, dedektif mavi, sessiz modda kod adı rengi); **bacaklar her zaman gri**; **kafa ve eller açık ten ya da kahverengi** (oyuncuya göre sabit; ceset yaşarkenki renginde yığılır). Renk listesi: `ragdoll.js → SKIN_TONES`, `LEG_GRAY`.
-* **Tutuşlar ve hareketler:** taramalı, tabanca, plazma tüfeği ve roketatar **iki elle** tutulur (duruş hafif alçalır, gövde ve kafa öne eğilir: tehditkâr duruş); bıçak gövdenin yanında, ucu öne eğik tutulur ve **saplama** hareketi yapar; elektrikli sopa tek elde, kalkık tutulur ve vuruşta savrulur; ateş edince **geri tepme**, bıçak fırlatınca ve bomba koyunca ayrı hareketler çalışır. Havada, tırmanırken, koşarken ve eğilirken ayrı duruşlar; dururken nefes alma. Tutuş ayarları: `avatarPose.js → HOLDS` (omuza göre konum, eğim, hangi elin boşta kalacağı); birinci şahıs elleri: `equipment.js → GRIPS`.
+* **Tutuşlar ve hareketler:** taramalı, tabanca, plazma tüfeği, sniper ve roketatar **iki elle** tutulur (duruş hafif alçalır, gövde ve kafa öne eğilir: tehditkâr duruş); bıçak gövdenin yanında, ucu öne eğik tutulur ve **saplama** hareketi yapar; elektrikli sopa tek elde, kalkık tutulur ve vuruşta savrulur; ateş edince **geri tepme**, bıçak fırlatınca ve bomba koyunca ayrı hareketler çalışır. Havada, tırmanırken, koşarken ve eğilirken ayrı duruşlar; dururken nefes alma. Tutuş ayarları: `avatarPose.js → HOLDS` (omuza göre konum, eğim, hangi elin boşta kalacağı); birinci şahıs elleri: `equipment.js → GRIPS`.
 * **Cesetler kendi içinden geçmez:** ragdoll uzuvları birbirine ve gövdeye girmez (uzuv–uzuv itme), yığılırken kollar / bacaklar gövdenin içine saplanmaz.
 
 **Ekran yazıları (HUD):**
 * **Sol alt:** oyundaki adın, **kendi rengiyle** (sesli modda gri "Irgat"; dedektifsen mavi "Dedektif"; sessiz modda kod adın, örn. "Echo", rastgele rengiyle) ve can çubuğu.
-* **Sağ alt:** rolün. **Baiter** ve **Aşık** ikincil rollerdir: ana rolünün yanında ayrı etiket olarak görünür (örn. `Sivil` `Baiter` `♥ Aşık: Ayşe`). Katil Baiter seçince seçilen kişide ekranda **"Baiter atandı"** başlığı ve altında *"Baitersın, amacın dedektifi kandırıp katile yardım edip katilin kazanmasını sağlamak"* yazar.
+* **Sağ alt:** rolün. **Baiter** ikincil roldür: ana rolünün yanında ayrı etiket olarak görünür (örn. `Sivil` `Baiter`). **Aşık** (v4.6) ana roldür; sevgilin ayrı etiketle yazar (`Aşık` `♥ Aşkın: Ayşe`). Katil Baiter seçince seçilen kişide ekranda **"Baiter atandı"** başlığı ve altında *"Baitersın, amacın dedektifi kandırıp katile yardım edip katilin kazanmasını sağlamak"* yazar.
 * **Nişangâhın altı:** baktığın oyuncunun ya da **cesedin** adı, küçük ve o kişinin renginde (renk adı yazılmaz: "Mavi Echo" değil **"Echo"**, mavi yazıyla). `lookName.showTime` (2,5 sn) sonra ya da başka birine bakınca kaybolur/değişir. Duvarın arkasındakinin adı görünmez; menzil `lookName.range` (14 m).
 * **Kimlikler:** Dedektif herkese **mavi "Dedektif"** olarak görünür (herkes onun kim olduğunu bilir). Diğer herkes sesli modda gri **"Irgat"**, sessiz modda **rastgele renkli kod adıdır** (mavi dışında; kod adlarında renk adı yazmaz). Gerçek oyuncu adları yalnızca tur başı rol ekranında ve TAB listesinde görünür.
 * **Tur başı siyah ekran (5 sn, `rounds.roleRevealTime`):** Üstte **rolün**; altında bildiğin kişiler (`Dedektif: Ayşe`, katilsen `Mafya: Ali`, `Baiter: …`, aşıksan `Aşkın: Zeynep`); ortanın altında **rol açıklaması** (örn. *"Silahın var, gece odaları gez, sorgula ve katili bul"*). Süre dolunca oyun başlar.
@@ -122,7 +151,7 @@ Tam ekranı istemezsen **Ayarlar → Genel → "Ctrl+W sekmeyi kapatmasın"** ku
 
 **Oyuncu çarpışması:** Canlı oyuncular birbirinin **içinden geçemez**. Tek istisna turun **ilk 10 saniyesidir** (`player.ghostSeconds`; doğma noktaları çakışabilir).
 
-**Duvardan geçme koruması (v4.1):** Oyuncu bir **dikey kapsüldür** (yarıçap 0,32 m × boy 1,75 m; eğilince 1,25 m) ve şu katmanlarla duvara / zemine / tavana karşı korunur (`js/collision.js`, ayarlar `GAME_CONFIG.collision`):
+**Duvardan geçme koruması (v4.1):** Oyuncu **dikey bir silindirdir** (yarıçap 0,32 m × boy 1,75 m; eğilince 1,25 m; v4.4: kapsülün yuvarlak uçları dikeyde yassıltıldı = düz taban / tavan, `collision.capFlat` = 4; `1` yazarsan eski kapsül) ve şu katmanlarla duvara / zemine / tavana karşı korunur (`js/collision.js`, ayarlar `GAME_CONFIG.collision`):
 * **Kesişme düzeltmesi:** Kapsülün ekseni bir yüzeyin *içinden* geçmişse (ince zemin, döşeme, tavan) kütüphanenin en yakın nokta hesabı bunu görmüyordu ve oyuncuyu yüzeyin *öbür tarafına* itebiliyordu; artık doğru yana çıkarılır.
 * **Küçük alt adımlar:** Hareket, her biri en çok yarıçapın yarısı (`collision.substep`) kadar adımlara bölünür; hızlı koşu / düşüş ince bir duvarı atlayamaz.
 * **Zemine adım adım iniş:** Yürürken kapsül önce basamak payı kadar (tavan varsa tavana kadar) kalkar, yatay hareket eder, sonra zemine DEĞENE kadar küçük adımlarla (`collision.descend`) iner → kapsül zeminin / döşemenin içine hiç girmez; kenardan çıkınca 0,5 m'lik ani aşağı sıçrama da olmaz.
@@ -147,13 +176,13 @@ Hâlâ bir duvarın içinden geçiyorsan o duvarın **çarpışması yok** demek
 Roller her turda rastgele dağıtılır ve **gizlidir**. Herkes yalnızca kendi rolünü görür; katil takımı birbirini, sevgililer birbirini, ölüler herkesi görür. **Tek istisna Dedektif'tir: onun kim olduğunu herkes bilir** (mavi "Dedektif").
 **Zorunlu roller:** **Katil** ve **Dedektif** her turda **mutlaka** vardır: host rol ayarlarında kapatamaz, "Otomatik" olsa bile en az 1 tane çıkar (`roles.js → MANDATORY_ROLES`; dedektif için en az 2 oyuncu gerekir). Diğer roller isteğe bağlıdır ve host tarafından açılıp kapatılır (aşağıda).
 Kimse rolünü yapmak zorunda değildir: bu bir arkadaş oyunu, kodda rol dışına çıkmayı engelleyen hiçbir şey yok (örn. Baiter seçilen kişi görevi yapmayabilir).
-**Rollerin kullanım hakkı (sınırı) yoktur**; yeteneklerin yalnızca bekleme süreleri (ve S2G'de gece başına 1 kez kuralı) vardır.
+**Rollerin kullanım hakkı (sınırı) yoktur**; yeteneklerin yalnızca bekleme süreleri (ve S2G / Umacı'da gece başına 1 kez kuralı) vardır.
 
 **Rol açıklamaları** (tur başı siyah ekranda ve `roles.js` içinde, kendi dilinle değiştirebilirsin):
 * Dedektif: *"Silahın var, gece odaları gez, sorgula ve katili bul."*
 * Mafya: *"Tüfeğin var, gece odandan çıkıp bir odayı tarayıp kaç, tünellere girmen yasak."*
 * Sivil Polis: *"Elektro şokun var, gece tünellerde gez ve katili bulmaya çalış."*
-* Aşık: *"Sevgilin ölürse sen de ölürsün."*
+* Aşık: *"Bir sevgilin var: adı sağ altta ve bu ekranda yazar. Biriniz ölürse diğeriniz de ölür. İkiniz de Masum Takımdasınız: birlikte katili bulun ve hayatta kalın."*
 * Baiter: *"Baitersın, amacın dedektifi kandırıp katile yardım edip katilin kazanmasını sağlamak."*
 
 | Rol | Takım | Ekipman / yetenek |
@@ -162,13 +191,14 @@ Kimse rolünü yapmak zorunda değildir: bu bir arkadaş oyunu, kodda rol dış�
 | **Mafya** | Katil | **Taramalı:** iki elle tutulur; 30 mermilik şarjör, mermi başına 15 hasar, menzil **25 m**; mermi bitince otomatik (veya **R** ile) reload (2,6 sn). |
 | **S2G** | Katil | **Gece başına 1 kez**, **yalnızca gece** (ışıklar kapalıyken): bir oyuncunun **1 m** yakınına git, ona **bak** ve **X'i basılı tut** (varsayılan **1 sn**, `abilities.s2g.holdTime`). Basılı tutarken yakındakiler **fermuar sesi** (`zip.mp3`) duyar, ortada ilerleme çubuğu dolar. Süre dolunca baktığın kişi **ölür**, `s2g.mp3` çalar ve **cesedi** ses bitene kadar her **0,25 sn**'de bir hafifçe **zıplar** (`jumpInterval`); ses bitince zıplama durur. Tuşu erken bırakırsan, hedeften uzaklaşırsan ya da bakışını kaçırırsan sayaç sıfırlanır ve hak **harcanmaz**. Elinde eşya/ceset varken kullanılamaz. |
 | **Dedektif** | Masum | **Tek mermili tabanca:** iki elle tutulur, menzil **25 m**, her atıştan sonra reload (3 sn). **Zorunlu rol**; herkes onun dedektif olduğunu bilir. Sessiz modda **tek konuşabilen** oyuncudur (aşağıda). |
-| **Sivil Polis** | Masum | **Elektrikli sopa:** (kauçuk saplı, uçta elektrotlar ve parlayan mavi akım) vuruş başına 35 hasar → **3 vuruşta öldürür**, vurulanı kısa süre sersemletir; menzil **1,8 m**. |
+| **Sivil Polis** | Masum | **Elektrikli sopa:** (kauçuk saplı, uçta elektrotlar ve parlayan mavi akım) vuruş başına 35 hasar → **3 vuruşta öldürür**, vurulanı kısa süre sersemletir; menzil **1,8 m**; vuruşlar arası bekleme **0,8 sn** (v4.5; `equipment.taser.cooldown`). |
 | **Sivil** | Masum | Yeteneği yok. |
 | **Eskort** | Masum | **Yalnızca bilgilendirme rolü:** özel yeteneği ve kullanım hakkı yoktur. |
-| **Uyurgezer** | Masum | **X:** 5 sn **uyur**: ekran **tamamen kararır, "Uyuyorsun…" yazar**, hareket edemez; sonra rastgele bir odaya ışınlanır ve ekran açılır. **1 dk bekleme.** |
+| **Uyurgezer** | Masum | **X:** 5 sn **uyur**: ekran **tamamen kararır, "Uyuyorsun…" yazar**, hareket edemez; sonra rastgele bir odaya ışınlanır ve ekran açılır (v4.5: varış noktası duvar / ev dışı için doğrulanır). **1 dk bekleme.** |
 | **Bombacı** | Masum | **X:** düğmeye basınca **anında** patlar (bekleme yok); **4,5 m** içindeki **herkesi** (kendisi dahil) öldürür. |
-| **Medyum** | Masum | **X:** yalnızca **gece** (ışıklar kapalıyken) bir oyuncu seç → onu mesafeden bağımsız duyarsın; karşılıklı ya da tek yönlü olabilir. **Sabah ışıklar açılınca bağlantı kendiliğinden kesilir**, gece tekrar bağlanabilirsin. Kullanım sınırı yok. Yalnızca sesli modda işe yarar. |
-| **Sevgililer (Aşık)** | — | **Her çift iki masumdur**; biri ölürse diğeri de ölür, birbirlerini bilirler. Host **Rol ayarları → Sevgililer (Aşık)** satırından seçer: *Kapalı* · *Otomatik* (5+ oyuncuda 1 çift) · *1–3 çift* (oyuncu sayısı yetmezse azalır). Eski "sevgililer olsun" kutusu kaldırıldı. |
+| **Medyum** | Masum | **X:** yalnızca **gece** (ışıklar kapalıyken) bir oyuncu seç → onu mesafeden bağımsız duyarsın; karşılıklı ya da tek yönlü olabilir. **Sabah ışıklar açılınca bağlantı kendiliğinden kesilir.** **Her gece yalnızca 1 kişi için** kullanılır (v4.4): o gece seçtiğin kişiyi açıp kapatabilirsin ama başka birini seçemezsin; ertesi gece hakkın yenilenir. Yalnızca sesli modda işe yarar. |
+| **Umacı** | Masum (varsayılan; `roles.js → UMACI_TEAM`) | **X (v4.5):** yalnızca **gece** (ışıklar kapalıyken), **her gece 1 kez**: **60 sn görünmez** olur ve **oyuncuların içinden geçer** (onlar da senin içinden geçer). Hareketsizken gövdesi **hiç çizilmez**; **hareket edince** Dead by Daylight'taki Wraith gibi vücudunda yarı saydam bir **dalgalanma (shimmer)** belirir. Görünmezken adı okunmaz ve feneri başkalarına görünmez; yine de vurulabilir. Ölünce ya da tur bitince görünmezlik biter. Ayarlar: `abilities.umaci` (`duration`, `nightOnly`, `shimmer`). |
+| **Aşık** | Masum | **Birincil rol (v4.6):** özel yeteneği / silahı yoktur. **İki kişilik çift** olarak verilir (her çift 2 koltuk alır; eşsiz Aşık kalmaz); biri ölürse diğeri de ölür, birbirlerini bilirler (sağ altta `♥ Aşkın: <ad>`, açılış ekranında "Aşkın"). Host **Rol ayarları → Aşık (çift)** satırından seçer: *Kapalı* · *Otomatik* (5+ oyuncuda 1 çift; `GAME_CONFIG.lovers`) · *Max 1–3 çift* (koltuk yetmezse azalır). Koltuk azsa öncelik: Eskort'tan sonra, Uyurgezer / Medyum / Umacı'dan önce. Debug / TrollHacks'te rolü Aşık yapılanlar otomatik eşlenir; belirli bir çifti **♥ Bağla** kurar (ikisi de Aşık olur), **Kaldır** ikisini Masum yapar. |
 
 **Gece / sabah:** Medyum kuralı ışıklara bağlıdır. Işıkların yarısından fazlası açıksa "gündüz", azı açıksa "gece" sayılır (`GAME_CONFIG.abilities.medium.nightLitFraction`). Şalterleri açıp kapatarak gece/gündüz oluşur; hiç ışık yoksa sürekli gece sayılır. **Işıklar her kapandığında yeni bir gece başlar** ve S2G'nin hakkı yenilenir (haritada hiç ışık yoksa tek bir sürekli gece olduğundan S2G tur başına 1 kez kullanır).
 
@@ -182,7 +212,7 @@ Kimse rolünü yapmak zorunda değildir: bu bir arkadaş oyunu, kodda rol dış�
 **Menziller (v4.2'de kısaltıldı):** bıçak **1,5 m** (`equipment.knife.range`), elektrikli sopa **1,8 m** (`equipment.taser.range`), tabanca ve taramalı **25 m** (`equipment.pistol/rifle.range`), bombacı patlaması **4,5 m** (`abilities.bomber.radius`). **S2G'nin 1 m menzili** (`abilities.s2g.range`) aynen kaldı.
 
 **Baiter:** Katil, **tur başına yalnızca 1 kez** bir oyuncuyu Baiter yapabilir ve **sonradan değiştirilemez**.
-Baiter bir **ikincil roldür**: kişinin asıl rolünü (Sivil, Eskort…) değiştirmez, sağ alttaki rol etiketinin **yanında** `Baiter` etiketi olarak görünür. Seçilen kişi ekranda **"Baiter atandı"** başlığını ve altında *"Baitersın, amacın dedektifi kandırıp katile yardım edip katilin kazanmasını sağlamak"* yazısını görür; Baiter'ı yalnızca katil (ve kendisi, ölüler) bilir. **Aşık** da aynı şekilde ikincil roldür (`♥ Aşık: <sevgilinin adı>`).
+Baiter bir **ikincil roldür**: kişinin asıl rolünü (Sivil, Eskort…) değiştirmez, sağ alttaki rol etiketinin **yanında** `Baiter` etiketi olarak görünür. Seçilen kişi ekranda **"Baiter atandı"** başlığını ve altında *"Baitersın, amacın dedektifi kandırıp katile yardım edip katilin kazanmasını sağlamak"* yazısını görür; Baiter'ı yalnızca katil (ve kendisi, ölüler) bilir. (v4.6: **Aşık** artık ikincil değil, ana roldür.)
 
 **Kazanma:** Katil ölürse katil takımı kaybeder ve masumlar kazanır (mafya hayatta olsa bile). Katil hayattayken bütün masumlar elenirse katil takımı (katil + mafya) kazanır. Süre dolarsa masumlar kazanır (`GAME_CONFIG.rounds.timeoutWinner`). Katil ile son masum aynı anda ölürse berabere.
 Tur bitince kazanan + roller gösterilir; 8 sn sonra (`rounds.restartDelay`) **yeni tur otomatik** başlar: roller yeniden dağıtılır, dünya sıfırlanır, cesetler silinir. Yeterli oyuncu kalmadıysa (en az `minPlayersToStart` = 3) lobiye dönülür.
@@ -199,11 +229,12 @@ Lobide host **Rol ayarları** bölümünü açar. Her özel rolün yanında bir 
 * **Kutu kapalı:** o rol oyunda **yoktur** (hiç verilmez). **Katil ve Dedektif zorunludur**: bunların kutusu kapatılamaz / her turda en az 1 tane çıkar.
 * **Kutu açık + `Max N` (1–5):** rol oyunda **vardır**; her turda **en az 1, en çok N** kişiye (rastgele) verilir. Örn. Mafya `Max 2` → bazı turlarda 1, bazılarında 2 mafya.
 * **Kutu açık + Otomatik:** oyuncu sayısına göre sabit sayı (`config.js → ROLE_COUNTS`; az oyuncuda 0 olabilir). `Max N` seçersen oyuncu sayısı az olsa bile rol en az 1 kez verilir.
-* **Katil her zaman 1 kişidir.** Kalan oyuncular Sivil olur; koltuk yetmezse öncelik sırası: Dedektif → Mafya → S2G → Sivil Polis → Bombacı → Eskort → Uyurgezer → Medyum (`roles.js → ROLE_PRIORITY`). Otomatik sayılar `config.js → ROLE_COUNTS` (örn. S2G 10+ oyuncuda 1).
+* **Aşık** ikişer kişilik **çift** olarak verilir: seçici "Max N **çift**" der (en çok 3), önizlemede `Aşık 1–2 çift` görünür; Otomatik'te 5+ oyuncuda 1 çifttir.
+* **Katil her zaman 1 kişidir.** Kalan oyuncular Sivil olur; koltuk yetmezse öncelik sırası: Dedektif → Mafya → S2G → Sivil Polis → Bombacı → Eskort → Aşık (2 koltuk) → Uyurgezer → Medyum → Umacı (`roles.js → ROLE_PRIORITY`). Otomatik sayılar `config.js → ROLE_COUNTS` (örn. S2G 10+ oyuncuda 1).
 * Altta "N oyuncu için roller: Dedektif 1 · Mafya 1–2 · Sivil 3–5 …" önizlemesi görünür (olası en az–en çok sayılar; diğer oyuncular da görür).
 * **Hepsini otomatik yap** düğmesi ayarları sıfırlar.
 
-**Oda ve lobi:** Oda kurarken ad, oyuncu sınırı (2–16), isteğe bağlı şifre, mod (sesli/sessiz), tur süresi (sınırsız – 20 dk) ve ölü sohbeti seçilir (sevgililer **Rol ayarları**ndadır). Lobide **TrollHacks (konsol)** ayarı *Kapalı* yapılırsa misafirler TrollHacks'i kullanamaz. Host bunları lobide de değiştirebilir, oyuncu atabilir ve en az 3 oyuncu varken oyunu başlatır. Tur sırasında içeri girenler izleyici olur.
+**Oda ve lobi:** Oda kurarken ad, oyuncu sınırı (2–16), isteğe bağlı şifre, mod (sesli/sessiz), tur süresi (sınırsız – 20 dk) ve ölü sohbeti seçilir (sevgililer **Rol ayarları**ndadır). (v4.4: lobideki TrollHacks seçicisi kaldırıldı; TrollHacks yalnızca konsoldan açılır, misafir izni `host.js → DEFAULT_SETTINGS.troll` ile kapatılabilir.) Host bunları lobide de değiştirebilir, oyuncu atabilir ve en az 3 oyuncu varken oyunu başlatır. Tur sırasında içeri girenler izleyici olur.
 **Oyuncu ayarları** (Menü → Ayarlar, tarayıcıda saklanır): fare hassasiyeti, görüş alanı (FOV), ses seviyesi, grafik kalitesi, **ışık efektleri (aç / kapa)**, ölü sohbetini gizleme · **Mikrofon:** cihaz seçimi, deneme çubuğu, açık mikrofon · **Tuşlar:** tuş atama.
 
 ---
@@ -226,7 +257,7 @@ Debug odasında: roller elle seçilir, **tur kendiliğinden bitmez**, zaman sın
   * **Diriltme** + açılır liste: **doğma noktasında** ya da **cesedinde** (cesedinin durduğu yerde dirilir ve **ceset yok olur**; listedeki seçim kaydedilir). Yalnızca ölü oyuncuya uygulanır; rolü ve gizli eşyaları korunur.
   * **Yanına git** (seçilen oyuncunun hemen arkasına ışınlanırsın) · **Önüme getir** (seçilen oyuncu bakışının 1,8 m önüne, sana dönük ışınlanır; arada duvar varsa yaklaştırılır).
   * **Ona yaz / Herkese yaz:** kutuya yazdığın metin yalnızca seçilen oyuncunun / herkesin ekranının ortasında ~6 sn gösterilir.
-  * **Gizli eşyalar:** **Roketatar**, **Bomba**, **Plazma tüfeği** (aşağıda).
+  * **Gizli eşyalar:** **Roketatar**, **Bomba**, **Plazma tüfeği**, **Sniper tüfeği** (aşağıda).
 * **Oyuncular ve roller:** kendi rolünü ve botların rollerini **anında** değiştir (silah, yetenek, can yenilenir). Her oyuncunun yanında **oyun içi kimliği** yazar: renk noktası + **NATO adı** (kalın) + gerçek adı (soluk); seçili oyuncu listesinde de aynıdır.
 * **Bot ekle:** *Baktığım yere ekle* nişangâhın gösterdiği zemin noktasına sana dönük bir bot koyar; *Rastgele noktaya* bir doğma noktasına koyar. En fazla `GAME_CONFIG.debug.maxBots` (16) bot.
 * **Harita raporu (konsol):** haritada **bulunan** (tür tür: ad, konum, ayarlar), **hiçbir kurala uymayan (tanınmayan)** ve **beklenip bulunamayan** her şeyi tarayıcı konsoluna yazar (**F12 → Console**). Ayrıca olası sorunları uyarır: `Collision_*` / `Spawn_*` yok, **çarpışması olmayan büyük görünür mesh'ler (içinden geçilen duvar / zemin)**, ölçeği uygulanmamış hareketli nesneler, doğma noktası oyuncudan az, şalterin hedef ışığı yok, idam şalteri var ama `DeathZone` yok, `Interact_*` hedefsiz, ayarlarda (`OBJECT_OVERRIDES`, `LIGHT_GROUPS`, `PAINTING_CONFIG`) haritada olmayan isimler, yazım hatası ihtimali (örn. `Dor_01`) vb. Debug odasında rapor **her tur başında kendiliğinden** da yazılır.
@@ -245,18 +276,19 @@ TrollHacks.enabled = true;   // aç   (kapatmak: TrollHacks.enabled = false;)
 Tur sürerken **F2** aynı paneli açar: **bot ekleme, turu yenileme ve lobiye dönme dışında her şey** vardır: rol değiştir, noclip / görünmezlik / ölümsüzlük / susturma, öldür / patlat / diriltme, yanına git / önüme getir, ekrana yazı, gizli eşyalar (roketatar, bomba, plazma), harita raporu, **çarpışma görünümü** ve **X-ray**. Oyuncular panelde **oyun içi adlarıyla** (NATO adı + renk, yanında gerçek ad) görünür.
 
 * **Host da misafir de** açabilir. Misafirin işlemleri host'a istek olarak gider ve host uygular; roller / durumlar host'tan gelir (`trollInfo`, ~0,7 sn'de bir). Host kendi konsolundan her zaman açabilir.
-* Host lobide **TrollHacks (konsol)** ayarını *Kapalı* yaparsa misafirler açamaz ("Host bu odada TrollHacks kullanımına izin vermiyor" uyarısı çıkar).
+* Misafirlerin TrollHacks'i açabilmesi host'ta `settings.troll` (varsayılan `true`, `js/host.js` başı) ile belirlenir; `false` yaparsan misafir açamaz ("Host bu odada TrollHacks kullanımına izin vermiyor" uyarısı çıkar). v4.4'te lobideki seçici kaldırıldı.
 * Konsoldan `TrollHacks.xray = true;` ile X-ray panel açmadan da açılır; `TrollHacks.help()` kısa yardım yazar. Yetki bir arkadaş oyunu için "dürüstlük esaslıdır": istemci kendini ilan eder, host yalnızca lobideki ayara bakar. Herkese açık bir odada ayarı *Kapalı* bırak.
 
 ### Gizli eşyalar (debug / TrollHacks panelinden verilir)
 
-Roller ve ekipmanlardan bağımsız, **herkese verilebilen** üç eşya. Panelde seçili oyuncu için düğmeye bas: eşya **verilir** (düğme `[slot] ✓` gösterir), tekrar basınca **geri alınır**. **Slot numarası verilme sırasına göre** değişir: ilk verilen **3**, sonraki **4**, üçüncüsü **5** olur (tuşlar `DEFAULT_KEYS.slot3 / slot4 / slot5`, Ayarlar → Tuşlar'dan değiştirilebilir). Biri geri alınırsa sonrakilerin numarası kayar. Eşya sol tıkla kullanılır; **1 / 2** ile boş ele ya da rol ekipmanına dönersin.
+Roller ve ekipmanlardan bağımsız, **herkese verilebilen** dört eşya. Panelde seçili oyuncu için düğmeye bas: eşya **verilir** (düğme `[slot] ✓` gösterir), tekrar basınca **geri alınır**. **Slot numarası verilme sırasına göre** değişir: ilk verilen **3**, sonraki **4**, **5**, dördüncüsü **6** olur (tuşlar `DEFAULT_KEYS.slot3 … slot6`, Ayarlar → Tuşlar'dan değiştirilebilir; dokunmatikte çubukta **Eşya 1–4**). Biri geri alınırsa sonrakilerin numarası kayar. Eşya sol tıkla kullanılır; **1 / 2** ile boş ele ya da rol ekipmanına dönersin.
 
 | Eşya (`config.js → equipment`) | Kullanım |
 |---|---|
 | **Roketatar** (`rocket`) | Sol tık roket fırlatır (hız 24 m/sn, ~31 m menzil); duvara / oyuncuya çarpınca **4 m** yarıçapında patlar, patlamadakini **öldürür** (yakında patlarsa seni de). 1 mermi, doldurma 2,6 sn. |
 | **Bomba** (`bomb`) | Sol tık baktığın yere (en çok 3 m) bomba **koyar**; **3 sn sonra** 4,5 m yarıçapta patlar ve öldürür (koyanı da). Sınırsız, yalnızca 2,5 sn bekleme. |
 | **Plazma tüfeği** (`plasma`) | Sol tık / basılı tut **plazma mermisi** atar (hız 40 m/sn, ~28 m menzil); mermi başına 34 hasar, saniyede 5 atış, 20 mermilik şarjör, doldurma 2,2 sn (**R**). |
+| **Sniper tüfeği** (`sniper`) | Sol tık **anında vuran ışın** (hitscan): **tek atışta öldürür**, menzil **120 m**, 5 mermilik şarjör, atışlar arası **1,3 sn** (sürgü), doldurma 3,4 sn (**R**). **Sağ tık basılı tut = dürbün:** görüş alanı **4×** daralır, fare hassasiyeti düşer, elindeki silah gizlenir ve dürbün çerçevesi çıkar (dokunmatikte sağdaki **Dürbün** düğmesi); doldururken ya da ölünce kapanır. Sesi 110 m'ye kadar duyulur. Ayarlar: `equipment.sniper` (`damage`, `magazine`, `cooldown`, `reloadTime`, `range`, `zoom`, `zoomSpeed`). |
 
 Roket, plazma mermileri ve bombalar **host'ta** hesaplanır; herkes aynı patlamayı görür / duyar. Patlamalar cesetleri savurur.
 
@@ -312,12 +344,12 @@ Animasyon: GLB içinde klip varsa adı `Auto` / `Loop` ile başlayanlar otomatik
 | Silah hasarı/mermi/bekleme, yetenek süreleri | `GAME_CONFIG.equipment`, `GAME_CONFIG.abilities` |
 | **Menziller** (bıçak 1,5 · elektrikli sopa 1,8 · tabanca / taramalı 25 · bombacı patlaması 4,5 m · S2G 1 m) | `equipment.knife / taser / pistol / rifle → range` · `abilities.bomber.radius` · `abilities.s2g.range` |
 | Bombacı fitili (0 = anında patlar) | `GAME_CONFIG.abilities.bomber.fuse` |
-| Gizli eşyalar (roketatar / bomba / plazma: hasar, hız, yarıçap, şarjör) · slot tuşları | `GAME_CONFIG.equipment.rocket / bomb / plasma` · `DEFAULT_KEYS.slot3 / slot4 / slot5` |
+| Gizli eşyalar (roketatar / bomba / plazma / sniper: hasar, hız, yarıçap, şarjör, dürbün zoom'u) · slot tuşları | `GAME_CONFIG.equipment.rocket / bomb / plasma / sniper` · `DEFAULT_KEYS.slot3 … slot6` |
 | Serbest dönen tabloların varsayılan ekseni (`vertical` / `free` / `normal`) | `GAME_CONFIG.midPaint.axis` |
 | Ses seviyesi dairesi tuşu (C, basılı) | `DEFAULT_KEYS.talkLevel` |
 | Karakter yüzleri (klasör, doku boyutu, yüz boyutu, en çok dosya) | `GAME_CONFIG.faces` · `assets/faces/` · `js/faces.js` |
 | Işık havuzu (kalite başına ışık sayısı) · yakın görüş · düz ışık modu · ambiyans | `QUALITY_PRESETS.maxLights` · `GAME_CONFIG.lights` (`maxActive`, `nearVision`, `flat`, `ambientOff`, `pickInterval`, `fadeSpeed`) |
-| Sevgililer (otomatik çift, en az oyuncu) · TrollHacks izni | `GAME_CONFIG.lovers` · `roles.js → LOVER_MAX_PICK` · lobide "TrollHacks (konsol)" |
+| Aşık (otomatik çift ve en az oyuncu; çift başına kişi `group`, en çok çift `maxPick`) · TrollHacks izni | `GAME_CONFIG.lovers` · `roles.js → ROLES.lover` · `host.js` başındaki `troll` |
 | İnsan modelinin renkleri (ten, bacak) · elindeki ekipmanın tutuşu | `ragdoll.js → SKIN_TONES, LEG_GRAY` · `avatarPose.js → HOLDS` · `equipment.js → GRIPS` (birinci şahıs) |
 | Etkileşim erişimi, kamera (FOV, hassasiyet) | `GAME_CONFIG.interaction`, `GAME_CONFIG.camera` |
 | Hangi sesler tamamen sessiz | `GAME_CONFIG.audio.silent` |
@@ -332,6 +364,8 @@ Animasyon: GLB içinde klip varsa adı `Auto` / `Loop` ile başlayanlar otomatik
 | Nişangâh altı isim (menzil, görünme süresi) | `GAME_CONFIG.lookName` |
 | Tur başı siyah rol ekranı süresi | `GAME_CONFIG.rounds.roleRevealTime` |
 | S2G yeteneği (basılı tutma, menzil, sesler, zıplama) | `GAME_CONFIG.abilities.s2g` |
+| Umacı yeteneği (süre, yalnızca gece, shimmer görünümü) · takımı | `GAME_CONFIG.abilities.umaci` · `roles.js → UMACI_TEAM` |
+| Mobil kişiselleştirme varsayılanları (boyut, saydamlık, joystick modu) | `js/touch.js → TOUCH_DEFAULTS` (oyuncu Ayarlar → Mobil'den değiştirir) |
 | Q menüsündeki sesler | `RADIAL_MENU_ITEMS` (`{ name, sound }` ekle; dosyayı `assets/sounds/` içine koy) |
 | Kaç kişide hangi özel rol çıkar (otomatik) | `ROLE_COUNTS` (host lobide rol açma/kapama + "Max N" ile elle de ayarlayabilir; üst sınır `roles.js → ROLE_MAX_PICK`) |
 | Ceset fiziği ve taşıma (ağırlık, yürüme hızı, düşürme açısı, ağ sıklığı) | `GAME_CONFIG.corpse` · ölüm anı itişleri `corpse.stumble` · patlama savurması `abilities.bomber.blastImpulse` |
@@ -364,7 +398,7 @@ murder/
     ├── scene.js       renderer, sis/karanlık, fener ışık havuzu
     ├── blenderLoader.js  GLB yükleme + isimle tanıma    ├── fallbackHouse.js  örnek ev
     ├── world.js       tanınan nesneleri sistemlere dağıtır
-    ├── collision.js   BVH tabanlı kapsül çarpışma (kesişme düzeltmesi, duvar geçme kilidi), ışın testi, çarpışma görünümü
+    ├── collision.js   BVH tabanlı silindir (yassı uçlu kapsül) çarpışma (kesişme düzeltmesi, duvar geçme kilidi), ışın testi, çarpışma görünümü
     ├── doors.js · lights.js (ışık havuzu) · cage.js · specialDoor.js · paintings.js · execution.js · kinematic.js
     ├── ladders.js     merdiven (Ladder_*): "kapsül değiyor mu?" sorgusu; tırmanma movement.js'te
     ├── midPaints.js   serbest dönen tablolar (MidPaint_*): host'ta rijit gövde fiziği + ağ yayını
@@ -379,6 +413,7 @@ murder/
     ├── roles.js · rounds.js · combat.js · host.js        (host otoritesi: roller, hasar, tur, ses rotaları, debug/bot)
     ├── multiplayer.js · client.js                        (ağ + mesajları oyuna uygulama; yerel debug odası)
     ├── voice.js       PeerJS yakınlık sesi + mikrofon seçimi  ├── chat.js · radialMenu.js · playerList.js
+    ├── touch.js · touchButtons.js · touchIcons.js   dokunmatik (mobil) arayüz: çubuk, bakış, çoklu dokunuş, düğmeler (v4.4) · kişiselleştirme, düzenleyici, tam ekran (v4.5)
     └── ui.js · debug.js (debug / TrollHacks paneli) · troll.js (TrollHacks + X-ray) · faces.js · effects.js · equipment.js
 ```
 
@@ -390,10 +425,11 @@ Ses taşıma kısmı `voice.js` içinde izole olduğu için ileride SFU'ya geçm
 
 ## 8. Bilinen notlar
 
-* Bu teslimde (v4.3.1) oyun tarayıcıda **çalıştırılıp denenmedi** (istenildiği gibi). Kod statik olarak denetlendi: sözdizimi, import/export eşleşmesi, tanımsız/kullanılmayan değişken taraması ve modüller arası çağrı kontrolü temiz.
+* Bu teslimde (v4.6) oyun tarayıcıda **çalıştırılıp denenmedi** (istenildiği gibi). Kod statik olarak denetlendi: sözdizimi, import/export eşleşmesi, tanımsız/kullanılmayan değişken taraması ve modüller arası çağrı kontrolü temiz.
+* **v4.6'nın hepsi oyun içinde denenmedi:** (1) **Umacı dalgalanması** artık `MeshLambertMaterial` + `onBeforeCompile` ile yazıldı (GLSL parçaları three r170 bilgisine göre eklendi): dalga görünmüyorsa / fazla görünüyorsa `abilities.umaci.shimmer` (`opacity` ↓ = daha az görünür, `band`, `wobble`); shader hata verirse tarayıcı konsolunda `THREE.WebGLProgram` uyarısı çıkar. (2) **Uyurgezer** hâlâ odaya değil doğma noktasına gidiyorsa konsoldaki `[Uyurgezer] Room_… geçerli nokta bulunamadı (kutu y …, elenen: zemin · duvar · kenar · baş)` satırını gönder: hangi eleme nedeniyle başarısız olduğunu gösterir. (3) **Aşık** birincil rolü: çift eşleme, "Max N çift" önizlemesi, debug / TrollHacks'te rol değişince yeniden eşleme. (4) **Sniper:** ışın, dürbün zoom'u (`equipment.sniper.zoom`), dürbün çerçevesi (`style.css → .scope`), 6. slot ve mobil **Dürbün** düğmesi.
   İlk denemede bir sorun görürsen tarayıcı konsolundaki (F12) hata satırı sorunu hızla gösterir.
 * **v4.3'ün hepsi oyun içinde denenmedi:** yüzler (boyut / konum / şeffaflık), TrollHacks (konsol bayrağı, host izni, misafir işlemleri), X-ray (siluet + etiket), ışık havuzu (yuva geçişleri), "Işık efektleri" kapalı modu (`lights.flat` → `intensity`, `darkIntensity`, `fogDark` gözle ayarlanmadı; karanlıkta çok açık / koyu gelirse bu üçünü değiştir) ve karanlıkta yakın görüş (`lights.nearVision` değerleri tahmindir: çok karanlık / aydınlık gelirse `intensity` / `distance` değiştir). Yüz dosyası yoksa kafa yüzsüz kalır; klasör listelenemiyorsa (GitHub Pages gibi) `assets/faces/faces.json` kullan.
-* **Mobil destek kaldırıldı** (v4.3): dokunmatik kontroller, `mobile.js` ve ilgili ayarlar silindi; yalnızca klavye + fare. v4.3, senin düzenlediğin `index.zip` (v4.2 üzerine ışık / kalite / çömelme / ses / menü değişiklikleri) temel alınarak hazırlandı.
+* **v4.4'ün hepsi oyun içinde denenmedi:** ölüm itmesi (`corpse.stumble` / `stumbleLift` / `momentum`), görünmez dünya görünümü (`deadView.*`: kamera mesafesi / ışık), zıpla-eğil (`player.airCrouchLift`), silindir çarpışma (`collision.capFlat`; merdiven / basamak / eğilme / kapı yanında bir takılma görürsen önce `capFlat: 1` ile eski kapsülü dene), Medyum (gecede 1 kişi; seçtiğin kişi o gece ölse de hakkın yenilenmez), merdiven ("ortalanma" = tırmanırken merdivene doğru yana çekme kaldırıldı; yalnızca merdivenin ince ekseninde yapışma kaldı) ve **dokunmatik arayüz** (gerçek telefonda hiç denenmedi: düğme yerleşimi, çubuk / bakış hızı, çoklu dokunuş, iOS'ta sohbet klavyesi, tam ekran / yatay kilit). iPhone Safari tam ekran API'sini desteklemez: adres çubuğunu gizlemek için sayfayı **Ana ekrana ekle** ile aç.
 * **v4.2'nin hepsi oyun içinde denenmedi:** iki elli tutuşlar, yeni silah modelleri, animasyonlar, gizli eşyalar, debug araçları, büyük örnek ev, çarpışma görünümü, basılı tutulan ses dairesi. Elde tutulan modellerin konumu (`equipment.js → GRIPS` / `TIPS`, `avatarPose.js → HOLDS`) gözle ayarlanmadı; bir silah elde yamuk ya da fazla uzun / yakın duruyorsa **yalnızca o satırdaki sayıları** değiştirmek yeter.
 * **Çarpışma görünümü varsayılan kapalı** (v4.3): yalnızca F2 panelindeki (debug / TrollHacks) düğmeyle açılır, seçim kaydedilmez; F3 kısayolu kaldırıldı. Açıkken çok büyük haritada FPS düşebilir.
 * **Gizli eşyalar / debug:** roket, plazma mermisi ve bomba **host'ta** hesaplanır (host'un gecikmesi herkesi etkiler); roketatar ve bomba yakında patlarsa seni de öldürür. **Noclip** seçilen oyuncunun kendi bilgisayarında hesaplanır (sunucu doğrulaması yok; yalnızca debug odasında). **Görünmez** modeli ve feneri gizler, sesi gizlemez. **Cesedinde diriltme**: ceset bulunamazsa oyuncu doğma noktasında dirilir.

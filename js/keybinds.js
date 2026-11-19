@@ -19,6 +19,7 @@ export const KEY_ACTIONS = [
   { id: 'slot3', label: 'Gizli eşya — 3. slot (debug)', group: 'Eylem' },
   { id: 'slot4', label: 'Gizli eşya — 4. slot (debug)', group: 'Eylem' },
   { id: 'slot5', label: 'Gizli eşya — 5. slot (debug)', group: 'Eylem' },
+  { id: 'slot6', label: 'Gizli eşya — 6. slot (debug)', group: 'Eylem' },
   { id: 'ability', label: 'Yetenek', group: 'Eylem' },
   { id: 'flashlight', label: 'Fener', group: 'Eylem' },
   { id: 'reload', label: 'Doldur (reload)', group: 'Eylem' },

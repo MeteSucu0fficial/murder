@@ -38,8 +38,15 @@ export class LadderSystem {
           for (const z of [bb.min.z, bb.max.z]) aabb.expandByPoint(corner.set(x, y, z).applyQuaternion(quat).add(pivot));
         }
       }
+      // ince (yüz) eksen: kutunun yatay yerel eksenlerinden kısa olanı (dünya yönü). Tırmanırken merdivene yaslanma çekimi yalnızca bu eksen
+      // boyunca olur (movement.js → _ladder); yana çekim yoktur, oyuncu merdivenin ortasına kaymaz. Eksen devrikse (dikeye yakın) null.
+      const thin = bb.max.x - bb.min.x <= bb.max.z - bb.min.z ? new THREE.Vector3(1, 0, 0) : new THREE.Vector3(0, 0, 1);
+      thin.applyQuaternion(quat);
+      thin.y = 0;
+      const wn = thin.lengthSq() > 0.25 ? thin.normalize() : null;
       this.list.push({
         id: e.name, node, pivot, quat, qInv: quat.clone().invert(), min: bb.min, max: bb.max, aabb, top: aabb.max.y, bottom: aabb.min.y,
+        wn: wn ? { x: wn.x, z: wn.z } : null,
       });
     }
   }

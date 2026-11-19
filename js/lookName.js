@@ -111,12 +111,14 @@ export class LookName {
     const col = ctx.world.collision;
     const o = mv.eye;
     const d = mv.lookDir;
-    const wall = col.raycast(o, d, L.range);
+    // Ölünce boşluk görünümünde harita ve canlı oyuncular görünmez: duvar engel olmaz, yalnızca cesetlerin adı okunur.
+    const voidV = !!(mv.voidView && ctx.me && !ctx.me.alive);
+    const wall = voidV ? null : col.raycast(o, d, L.range);
     let bestT = wall ? wall.distance : L.range;
     let best = null;
     const viewed = mv.viewedPlayer();
     for (const p of ctx.players.map.values()) {
-      if (!p.alive || p === viewed || p === ctx.me) continue;
+      if (voidV || !p.alive || p === viewed || p === ctx.me || p.umaci) continue; // görünmez Umacı'nın adı okunmaz
       const hh = p.crouch ? 1.35 : 1.85;
       const t = rayBox(o, d, p.pos.x - 0.36, p.pos.y, p.pos.z - 0.36, p.pos.x + 0.36, p.pos.y + hh, p.pos.z + 0.36);
       if (t < bestT) {

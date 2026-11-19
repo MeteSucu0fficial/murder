@@ -1,5 +1,5 @@
-// Birinci şahıs "elimdeki ekipman" görünümü + iki kol (bıçak, tabanca, taramalı, elektrikli sopa, roketatar, bomba, plazma tüfeği).
-// Tabanca / taramalı / roketatar / plazma / bomba İKİ elle, bıçak ve elektrikli sopa tek elle tutulur. Kollar: oyuncu renginde kol + ten rengi bilek / el.
+// Birinci şahıs "elimdeki ekipman" görünümü + iki kol (bıçak, tabanca, taramalı, elektrikli sopa, roketatar, bomba, plazma tüfeği, sniper).
+// Tabanca / taramalı / roketatar / plazma / sniper / bomba İKİ elle, bıçak ve elektrikli sopa tek elle tutulur. Kollar: oyuncu renginde kol + ten rengi bilek / el.
 // Ana görüntünün ÜSTÜNE ayrı bir sahne + ayrı kamerayla çizilir (derinlik tamponu sıfırlanır):
 // duvara yaklaşınca silah duvarın içine girmez. Ölünce izlenen oyuncunun elindeki ekipman gösterilir.
 import * as THREE from 'three';
@@ -24,11 +24,12 @@ const POSE = {
   rocket: { p: [0.15, -0.2, -0.46], r: [0.05, 0.03, 0], idle: 0.4 },
   bomb: { p: [0.0, -0.19, -0.38], r: [0.25, 0, 0], idle: 0.8 },
   plasma: { p: [0.11, -0.19, -0.34], r: [0.03, 0.02, 0], idle: 0.5 },
+  sniper: { p: [0.1, -0.2, -0.3], r: [0.03, 0.02, 0], idle: 0.35 },
 };
 // Kolların ekranın dışındaki başlangıcı (omuz yönü)
 const ANCHOR = { R: [0.3, -0.55, -0.02], L: [-0.27, -0.55, -0.02] };
-const RECOIL = { pistol: 1, rifle: 0.7, taser: 0.4, rocket: 2.2, plasma: 0.45 };
-const FLASHES = new Set(['pistol', 'rifle', 'rocket', 'plasma']);
+const RECOIL = { pistol: 1, rifle: 0.7, taser: 0.4, rocket: 2.2, plasma: 0.45, sniper: 1.8 };
+const FLASHES = new Set(['pistol', 'rifle', 'rocket', 'plasma', 'sniper']);
 
 const ARM_GEO = new THREE.CylinderGeometry(1, 1, 1, 10).rotateX(Math.PI / 2).translate(0, 0, 0.5); // z: 0..1 arası uzanan silindir (yarıçap = ölçek)
 const HAND_GEO = new THREE.BoxGeometry(1, 1, 1);
@@ -140,7 +141,7 @@ export class ViewModel {
 
   /** İzlediğim oyuncunun atışı (kendi atışım zaten kick ile gösterildi). */
   onShot(m) {
-    if (m.from !== ctx.myId && m.from === ctx.movement.spectateId) this.kick(m.k === 'pistol' || m.k === 'rifle' ? m.k : 'taser');
+    if (m.from !== ctx.myId && m.from === ctx.movement.spectateId) this.kick(m.k === 'pistol' || m.k === 'rifle' || m.k === 'sniper' ? m.k : 'taser');
   }
   onStab(m) {
     if (m.from !== ctx.myId && m.from === ctx.movement.spectateId) this.kick('knife');
@@ -159,7 +160,9 @@ export class ViewModel {
     if (type && type !== this.type) this._setType(type);
     this.show = damp(this.show, type ? 1 : 0, 14, dt);
     if (!type && this.show < 0.02 && this.mesh) this._setType(null);
-    this.visible = !!this.mesh && this.show > 0.02;
+    // Sniper dürbünü açıkken kendi silahım gizlenir (dürbün çerçevesi ekranı kaplar)
+    const scoped = viewed === ctx.me && (ctx.inventory?.scopeAmt ?? 0) > 0.2;
+    this.visible = !!this.mesh && this.show > 0.02 && !scoped;
     this.root.visible = this.visible;
     if (!this.visible) {
       this.arms.R.group.visible = this.arms.L.group.visible = false;

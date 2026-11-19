@@ -14,7 +14,7 @@ export class ChatUI {
     this.fadeAt = 0;
     this.log = h('div', { class: 'chat-log' });
     this.input = h('input', {
-      class: 'chat-input', type: 'text', maxlength: String(GAME_CONFIG.chat.maxLength), placeholder: 'Mesaj yaz ve Enter\'a bas…', autocomplete: 'off',
+      class: 'chat-input', type: 'text', maxlength: String(GAME_CONFIG.chat.maxLength), placeholder: 'Mesaj yaz ve Enter\'a bas…', autocomplete: 'off', enterkeyhint: 'send',
     });
     this.toggleBtn = h('button', { class: 'chat-toggle', type: 'button', title: 'Sohbeti aç/kapat', onclick: () => this.setPinned(!this.pinned) }, 'Sohbet');
     this.form = h('form', { class: 'chat-form', onsubmit: (e) => this.submit(e) }, this.input);
@@ -54,13 +54,15 @@ export class ChatUI {
   }
 
   // ---- yazma ----
-  focus() {
+  /** sync: dokunmatik düğmeden çağrılırsa hemen odaklanır (iOS / Android klavyesi yalnızca kullanıcı hareketi içinde açılır). */
+  focus(sync = false) {
     if (!ctx.me) return;
     this.setPinned(true);
     this.open = true;
     this.box.classList.add('typing');
     ctx.input.exitLock();
-    setTimeout(() => this.input.focus(), 0);
+    if (sync) this.input.focus();
+    else setTimeout(() => this.input.focus(), 0);
   }
   close(relock) {
     this.input.value = '';

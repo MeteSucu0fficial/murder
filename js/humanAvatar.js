@@ -7,6 +7,7 @@ import * as THREE from 'three';
 import { R, RagdollView, SKIN_TONES, TEMPLATE as T } from './ragdoll.js';
 import { buildEquipmentMesh, GRIPS } from './equipment.js';
 import { ACTION_DUR, HOLDS, actionPose, ik3 } from './avatarPose.js';
+import { GAME_CONFIG } from './config.js';
 
 const { HEAD, LSH, RSH, LHIP, RHIP, LEL, REL, LHAND, RHAND, LKNEE, RKNEE, LFOOT, RFOOT, BACK } = R;
 const X_AXIS = new THREE.Vector3(1, 0, 0);
@@ -14,6 +15,36 @@ const Y_AXIS = new THREE.Vector3(0, 1, 0);
 const lerp = THREE.MathUtils.lerp;
 const clamp01 = (v) => Math.max(0, Math.min(1, v));
 const V = (x = 0, y = 0, z = 0) => new THREE.Vector3(x, y, z);
+
+// ---- Umacı: Wraith benzeri "dalgalanma" (yalnızca hareket ederken çizilir; bkz. setShimmer) ----
+// Sahnenin GERÇEK ışığıyla aydınlanan, çok saydam tek bir Lambert malzemesi: karanlıkta (ışık yokken) hiç görünmez, ışıkta ise çok hafif bir iz bırakır.
+// Üstünde yukarı akan dalga bantları saydamlığı oynatır, yüzey çok az titrer ("orada bir şey var" hissi). Ayarlar: config.js → abilities.umaci.shimmer
+const _shimmerTime = { value: 0 };
+let _shimmerMat = null;
+function shimmerMat() {
+  if (_shimmerMat) return _shimmerMat;
+  const S = GAME_CONFIG.abilities.umaci.shimmer;
+  const mat = new THREE.MeshLambertMaterial({ color: 0xdfe8f5, transparent: true, opacity: S.opacity, depthWrite: false });
+  mat.onBeforeCompile = (sh) => {
+    sh.uniforms.uTime = _shimmerTime;
+    sh.uniforms.uBand = { value: S.band };
+    sh.uniforms.uWobble = { value: S.wobble };
+    sh.vertexShader = sh.vertexShader
+      .replace('#include <common>', '#include <common>\nuniform float uTime;\nuniform float uWobble;\nvarying vec3 vShW;')
+      .replace('#include <begin_vertex>', `#include <begin_vertex>
+        vec4 shW0 = modelMatrix * vec4(position, 1.0);
+        transformed += normal * (uWobble * sin(shW0.y * 7.0 + (shW0.x + shW0.z) * 3.0 + uTime * 6.0));
+        vShW = (modelMatrix * vec4(transformed, 1.0)).xyz;`);
+    sh.fragmentShader = sh.fragmentShader
+      .replace('#include <common>', '#include <common>\nuniform float uTime;\nuniform float uBand;\nvarying vec3 vShW;')
+      .replace('#include <alphamap_fragment>', `#include <alphamap_fragment>
+        float shA = sin(vShW.y * 9.0 - uTime * 5.0 + sin((vShW.x + vShW.z) * 5.0 + uTime * 2.0) * 2.0);
+        float shB = sin(vShW.y * 19.0 + (vShW.x - vShW.z) * 6.0 + uTime * 8.0);
+        diffuseColor.a *= max(0.0, 1.0 + uBand * (0.5 * shA + 0.5 * shB));`);
+  };
+  _shimmerMat = mat;
+  return mat;
+}
 
 // ---- şablondan ölçüler (ceset modeliyle birebir aynı kemik boyları) ----
 const dist3 = (a, b) => Math.hypot(T[a][0] - T[b][0], T[a][1] - T[b][1], T[a][2] - T[b][2]);
@@ -110,6 +141,7 @@ export class HumanAvatar {
     this.carryKind = 'obj';
     this.carryT = 0;
     this.act = null; // { kind, t, dur }: saldırı / atış hareketi
+    this.shimmer = false; // Umacı: gövde "dalgalanma" malzemesinde mi
   }
 
   setColor(hex) {
@@ -132,6 +164,7 @@ export class HumanAvatar {
     const m = type ? buildEquipmentMesh(type) : null;
     if (m) this.mount.add(m);
     else this.equipType = null;
+    if (this.shimmer) this._shimmerSwap(true); // yeni ekipman de dalgalansın
   }
 
   setPitch(p) {
@@ -176,8 +209,37 @@ export class HumanAvatar {
     this.group.visible = v;
   }
 
+  /** Umacı: true → gövde parçaları "dalgalanma" malzemesine geçer (ışıkla aydınlanan, çok saydam, gölge atmaz); false → asıl malzemeler geri gelir. */
+  setShimmer(on) {
+    on = !!on;
+    if (on === this.shimmer) return;
+    this.shimmer = on;
+    this._shimmerSwap(on);
+  }
+
+  _shimmerSwap(on) {
+    const mat = shimmerMat();
+    const apply = (o) => {
+      if (!o.isMesh) return;
+      if (on) {
+        if (o.material === mat) return;
+        o.userData.shOrig = o.material;
+        o.userData.shCast = o.castShadow;
+        o.material = mat;
+        o.castShadow = false;
+      } else if (o.userData.shOrig) {
+        o.material = o.userData.shOrig;
+        o.castShadow = !!o.userData.shCast;
+        o.userData.shOrig = null;
+      }
+    };
+    this.view.group.traverse(apply);
+    this.mount.traverse(apply);
+  }
+
   update(dt) {
     this.t += dt;
+    if (this.shimmer) _shimmerTime.value = (performance.now() / 1000) % 1000;
     const sm = (v, to, rate) => v + (to - v) * (1 - Math.exp(-rate * dt));
     this.gait = sm(this.gait, this.moving, 10);
     const hold = this.equipType ? HOLDS[this.equipType] : null;

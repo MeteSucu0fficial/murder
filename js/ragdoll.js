@@ -39,7 +39,8 @@ export const RADIUS = [0.14, 0.09, 0.09, 0.1, 0.1, 0.06, 0.06, 0.05, 0.05, 0.08,
 const MASS = [1.2, 2, 2, 2.5, 2.5, 0.8, 0.8, 0.6, 0.6, 1.2, 1.2, 1, 1, 1];
 const INV = MASS.map((m) => 1 / m);
 // Ölüm anındaki itişin hangi noktalara ne kadar uygulanacağı (üst gövde tam, ayaklar az → ceset devrilir)
-const IMP_WEIGHT = [1, 1, 1, 0.6, 0.6, 1, 1, 1, 1, 0.35, 0.35, 0.1, 0.1, 1];
+// (Bacaklar eskisinden ağır itilir: ceset yerinde çökmek yerine vurulan taraftan savrulur.)
+const IMP_WEIGHT = [1, 1, 1, 0.85, 0.85, 1, 1, 1, 1, 0.7, 0.7, 0.45, 0.45, 1];
 
 // [a, b] = eşit uzunluk · [a, b, 'min', f] = mesafe en az f × (ayakta uzunluk): eklem açısını sınırlar / içinden geçmeyi önler
 const RAW_LINKS = [

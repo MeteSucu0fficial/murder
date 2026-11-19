@@ -528,7 +528,8 @@ export class GameClient {
     ctx.effects.impact(e);
     ctx.viewmodel?.onShot(m);
     ctx.players.get(m.from)?.playAction('shoot'); // geri tepme animasyonu
-    audio.sfx(m.k === 'pistol' ? 'pistol' : 'rifle', { pos: o, listener: ctx.sceneMgr.camera.position });
+    const snp = m.k === 'sniper'; // sniper: daha gür ve çok uzaktan duyulur
+    audio.sfx(snp ? 'sniper' : m.k === 'pistol' ? 'pistol' : 'rifle', { pos: o, listener: ctx.sceneMgr.camera.position, range: snp ? 110 : 45 });
   }
 
   /** Bıçak vuruşu: TAMAMEN SESSİZ (ses yok). Mesaj, ileride animasyon için yayınlanmaya devam eder. */

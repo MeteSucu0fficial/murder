@@ -60,6 +60,9 @@ export const GAME_CONFIG = {
     // Canlı oyuncular birbirinin içinden GEÇEMEZ. Tek istisna: turun ilk ghostSeconds saniyesi (doğma noktaları çakışabilir).
     ghostSeconds: 10,
     separationStep: 0.18, // çakışan iki oyuncu birbirini her karede en fazla bu kadar (m) iter (ani ışınlanma olmasın)
+    // HAVADA EĞİLME (CS tarzı): zıplarken eğilirsen gövde / kamera aşağı inmez, BACAKLAR yukarı çekilir (ayak konumu bu kadar m yükselir).
+    // Kamera sabit kalır; yere inince normal eğilme olur. Eğilmeden kalkarken ayakların altı boşsa ayaklar geri iner. 0 = kapalı.
+    airCrouchLift: 0.5, // = eyeHeight − crouchEyeHeight
   },
 
   // Çarpışma motoru (collision.js). Oyuncu bir DİKEY KAPSÜL'dür (player.radius × player.height); aşağıdakiler onu duvardan geçmeye karşı sağlamlaştırır.
@@ -69,6 +72,10 @@ export const GAME_CONFIG = {
     iterations: 5, // bir kapsülü duvarlardan çıkarırken en çok itme turu (köşelerde birden çok yüzey birlikte iter)
     descend: 0.8, // yürürken zemine inme adımı = descend × yarıçap (< 1: kapsül ekseni zeminin içinden geçemez)
     crossGuard: true, // duvar geçme koruması: kapsül ekseni bir alt adımda statik bir yüzeyi KESERSE o alt adım geri alınır (kapatma)
+    // SİLİNDİR: oyuncunun alt / üst ucu küre değil YASSI uçludur (gerçek uzayda dikey uç yarıçapı = player.radius / capFlat → 0.32 / 4 = 8 cm kenar yuvarlaklığı).
+    // Yarıçap (yatay) aynı kalır. Düz taban: kenarda / basamakta kapsül gibi kayıp düşmezsin, tavana tam boyunla değersin.
+    // 1 = klasik kapsül (eski davranış). Çok büyük değer (≥ 10) neredeyse tam silindirdir. Hareketli nesneler (kapı, kafes) klasik kapsülle çarpışır.
+    capFlat: 4,
   },
 
   // Nişangâhın altında, bakılan oyuncunun / cesedin adı (kendi renginde, küçük). Birkaç saniye sonra ya da başkasına bakınca değişir / kaybolur.
@@ -91,8 +98,8 @@ export const GAME_CONFIG = {
     timeoutWinner: 'innocent', // süre dolarsa kazanan taraf
   },
 
-  // Sevgililer (Aşık): açık / kapalı ve kaç çift olacağı artık lobideki "Rol ayarları"ndan seçilir (roles.js → loverLimits).
-  // autoMinPlayers: "Otomatik" ayarda bu kadar ya da daha fazla oyuncu varsa 1 çift çıkar. enabled=false → otomatik hiç çıkmaz.
+  // Sevgililer (Aşık): artık normal bir ROL (roles.js → ROLES.lover; 2 kişilik çift olarak verilir, koltuk alır). Açık / kapalı ve kaç çift olacağı lobideki "Rol ayarları"ndan seçilir.
+  // autoMinPlayers: "Otomatik" ayarda bu kadar ya da daha fazla oyuncu varsa 1 çift çıkar (ROLE_COUNTS.lover). enabled=false → otomatik hiç çıkmaz.
   lovers: { enabled: true, autoMinPlayers: 5 },
 
   // Kapı kanadı HER ZAMAN katıdır (açıkken de içinden geçilmez). Hareket ederken bir oyuncuya değerse geri döner:
@@ -129,6 +136,7 @@ export const GAME_CONFIG = {
   // Tepeye varınca (ayakların tepenin topMargin altına gelince) merdivene doğru küçük bir sıçrama yaparsın → platforma / üst kata çıkarsın.
   ladder: {
     speed: 3, // tırmanma hızı (m/sn)
+    downPitch: 0.2, // bakış yatayın bu kadar (rad ≈ 11°) altına inince ileri tuşu AŞAĞI iner (düz / yukarı bakarken yukarı çıkar); geri tuşu tersi
     strafeSpeed: 1.2, // merdivende yana (A/D) hız (m/sn)
     touchMargin: 0.22, // kapsül merdiven kutusuna bu kadar (m) yaklaşırsa "değdi" sayılır
     faceDot: 0.2, // tırmanmaya başlamak için merdivene dönük olmalısın (bakış yönü · merdivene yön ≥ bu); yanından geçerken kapmasın diye
@@ -266,7 +274,29 @@ export const GAME_CONFIG = {
     maxAwake: 15, // sn: bu kadar süre uyanık kalan ceset (titreşim vb.) zorla uyutulur
     netHz: 12, // uyanık cesetlerin yayın sıklığı
     pushPlayers: true, // yürüyen oyuncular cesetleri iter
-    stumble: { rifle: 3.2, pistol: 4.5, plasma: 2.8, taser: 0.6, knife: 0.8, knifeThrow: 1.5, bomb: 0, execution: 0 }, // ölüm anı itişi (m/sn)
+    // ÖLÜM İTİŞİ (m/sn): ölünce ceset olduğu yerde çökmez, VURULAN TARAFTAN (kurşunun / bıçağın / topun gittiği yönde) fırlar.
+    // bomb: patlamanın kendi gücü (blastImpulse) kullanılır · execution: itiş yok.
+    stumble: { rifle: 6.5, pistol: 9, plasma: 7, sniper: 12, taser: 3, knife: 4.5, knifeThrow: 7, bomb: 0, execution: 0 },
+    stumbleLift: 0.3, // itişin bu oranı kadarı yukarı verilir (ceset hafifçe sıçrar)
+    momentum: 0.7, // ölen koşuyorsa hızının bu oranı itişe eklenir (koşarken vurulan savrularak gider)
+  },
+
+  // ÖLÜNCE GÖRÜNÜM: harita dahil HER ŞEY görünmez, arka plan simsiyah; yalnızca RAGDOLL CESETLER görünür (çarpışma haritada aynen sürer:
+  // ceset görünmez zeminde / duvarlarda durur). Üçüncü şahıs: cesedin etrafında döner. Fareyle tıklayınca oyuncuları BİRİNCİ ŞAHIS izlemeye geçersin;
+  // bu geçiş TEK YÖNLÜDÜR (boşluğa geri dönülmez); izlerken SOL TIK = sonraki, SAĞ TIK = önceki oyuncu (ölümden hemen sonra yanlışlıkla tıklamaya karşı clickDelay).
+  deadView: {
+    layer: 3, // yalnızca cesetlerin ve boşluk ışıklarının bulunduğu three.js katmanı (0 = normal sahne)
+    distance: 3.2, // varsayılan kamera uzaklığı (m); fare tekerleği ile değişir
+    minDistance: 1.2,
+    maxDistance: 9,
+    height: 0.1, // odak noktası cesedin merkezinden bu kadar yukarıda
+    minPitch: -1.2, // kamera yukarıdan bakabilsin / alttan bakabilsin
+    maxPitch: 1.4,
+    follow: 7, // odak noktası yumuşatması (büyük = sıkı takip)
+    clickDelay: 0.8, // ölümden sonra bu kadar sn boşluktaki tıklama yok sayılır (yanlışlıkla izlemeye geçmesin)
+    cycleDelay: 0.2, // izlemeye geçtikten sonra bu kadar sn sol / sağ tık oyuncu değiştirmez
+    ambient: 1.15, // boşluk ışıkları: ortam + kameranın yanındaki yönlü ışık
+    headlamp: 2.3,
   },
 
   equipment: {
@@ -285,22 +315,31 @@ export const GAME_CONFIG = {
     },
     pistol: { name: 'Tabanca', damage: 1000, magazine: 1, reloadTime: 3, cooldown: 0.25, range: 25, spread: 0 },
     rifle: { name: 'Taramalı', damage: 15, magazine: 30, reloadTime: 2.6, fireRate: 9, range: 25, spread: 0.025 },
-    taser: { name: 'Elektrikli sopa', damage: 35, range: 1.8, cooldown: 1.6, stun: 1.2, coneCos: 0.45 },
-    // Gizli eşyalar: yalnızca debug panelinden verilir. Slot numaraları (3, 4, 5) verilme sırasına göre atanır.
+    taser: { name: 'Elektrikli sopa', damage: 35, range: 1.8, cooldown: 0.8, stun: 1.2, coneCos: 0.45 }, // saldırı hızı: bekleme 1.6 → 0.8 sn (2 kat hızlı)
+    // Gizli eşyalar: yalnızca debug panelinden verilir. Slot numaraları (3, 4, 5, 6) verilme sırasına göre atanır.
     // Roketatar: duvara / oyuncuya çarpınca patlar (radius içindeki herkes ölür). Menzil ≈ speed × life.
     rocket: { name: 'Roketatar', item: true, projectile: true, damage: 1000, magazine: 1, reloadTime: 2.6, cooldown: 0.6, speed: 24, life: 1.3, radius: 4, blastImpulse: 12 },
     // Bomba: baktığın yere (plantRange m) konur, fuse sn sonra patlar. Sınırsız; yalnızca bekleme süresi vardır.
     bomb: { name: 'Bomba', item: true, damage: 1000, cooldown: 2.5, fuse: 3, radius: 4.5, blastImpulse: 13, plantRange: 3 },
     // Plazma tüfeği: otomatik; yavaş-hızlı enerji topu (hasar vurduğu yerde, anlık değil). Menzil ≈ speed × life.
     plasma: { name: 'Plazma tüfeği', item: true, projectile: true, damage: 34, magazine: 20, reloadTime: 2.2, fireRate: 5, speed: 40, life: 0.7, spread: 0.01 },
+    // Sniper tüfeği: anında vuran ışın (hitscan), tek atışta öldürür, çok uzun menzil; sürgülü olduğu için atışlar arası bekleme uzun, şarjör küçük.
+    // SAĞ TIK (basılı tut; dokunmatikte Dürbün düğmesi) = dürbün: görüş alanı zoom kat daralır, fare hassasiyeti buna göre düşer, elindeki silah gizlenir, dürbün çerçevesi çıkar.
+    // zoomSpeed: dürbünün açılıp kapanma hızı (büyük = hızlı).
+    sniper: { name: 'Sniper tüfeği', item: true, damage: 1000, magazine: 5, reloadTime: 3.4, cooldown: 1.3, range: 120, spread: 0, zoom: 4, zoomSpeed: 16 },
   },
 
   // Yeteneklerin KULLANIM HAKKI (sayaç) yoktur. Sadece uyurgezerin bekleme süresi vardır.
   // Medyum: bağlantıyı yalnızca gece (ışıklar kapalıyken) kurabilir; ışıklar açılınca (sabah) bağlantı otomatik kesilir.
+  // Her gece YALNIZCA 1 KİŞİ için kullanılır (seçtiği kişiyle yeniden bağlanabilir, başkasına geçemez; yeni gecede hak yenilenir).
   abilities: {
     sleepwalker: { freezeTime: 5, cooldown: 60 },
     bomber: { radius: 4.5, fuse: 0, damage: 1000, hurtSelf: true, blastImpulse: 13 }, // fuse: 0 = düğmeye basınca ANINDA patlar (> 0 olursa o kadar sn fitil yanar); blastImpulse: patlamada cesetlerin savrulma hızı (m/sn)
     medium: { nightLitFraction: 0.5 }, // ışıkların bu oranından AZI açıksa "gece" sayılır
+    // Umacı: GECE başına 1 kez (nightOnly: false → gündüz de kullanılır, "gün" de bir gece sayılır), duration sn boyunca görünmez + oyuncuların içinden geçer.
+    // Hareketsizken gövde HİÇ çizilmez; hareket edince Dead by Daylight'taki Wraith gibi dalgalanır (shimmer).
+    // shimmer: opacity = gövdenin saydamlığı (sahne ışığıyla aydınlanır: karanlıkta görünmez; ÇOK az belli olsun diye küçük) · band = akan dalga bantlarının saydamlığı oynatma oranı · wobble = yüzey titreşimi (m)
+    umaci: { duration: 60, nightOnly: true, shimmer: { opacity: 0.1, band: 0.8, wobble: 0.03 } },
     // S2G: gece başına 1 kez. Hedefin yanına (range m) git, ona bak, yetenek tuşunu holdTime sn basılı tut (zip sesi çalar);
     // sonra hedef ölür, kill sesi çalar ve ceset ses bitene kadar her jumpInterval sn'de bir hafifçe zıplar.
     s2g: {
@@ -417,7 +456,14 @@ export const EXPECTED_KINDS = [
 // Her nesneye özel ayar (isteğe bağlı). Blender'da Custom Properties olarak da girilebilir
 // (glTF extras → userData); öncelik: bu tablo > Blender özellikleri > varsayılan.
 export const OBJECT_OVERRIDES = {
-  Grab_01: { weight: 1 }
+  // Door_01: { openAngle: 1.9, duration: 0.6 },
+  // Grab_01: { weight: 3, carryable: true, throwable: true, collisionSize: [0.4, 0.4, 0.4], rotationLimit: { pitch: [-0.8, 0.8] } },
+  // Interact_Door_01: { radius: 2.2 },
+  Grab_01: { weight: 1 },
+  Grab_02: { weight: 2 },
+  Grab_03: { weight: 0.6 },
+  Grab_04: { weight: 4, throwable: false },
+  Grab_08: { weight: 4, throwable: false },
 };
 
 // Şalter → kontrol ettiği ışıklar. Değerler önek (startsWith) veya tam isimdir.
@@ -428,26 +474,7 @@ export const LIGHT_GROUPS = {
 // Tablo konumları (açık / kapalı). Konum = dünya koordinatı, offset = tablonun KENDİ eksenlerinde kayma.
 // closed boş bırakılırsa Blender'daki başlangıç konumu "kapalı" sayılır.
 export const PAINTING_CONFIG = {
-  default: { duration: 0.7, closed: {}, open: { offset: [0, 2, 0], rotationOffset: [0, 0, 0] } },
-  Painting_9: { duration: 0.7, closed: {}, open: {rotationOffset: [0, 1.57, 0] } },
-  Painting_19: { duration: 0.7, closed: {}, open: { offset: [2, 0, 0]} },
-  Painting_15: { duration: 0.7, closed: {}, open: { offset: [2, 0, 0]} },
-  Painting_18: { duration: 0.7, closed: {}, open: { offset: [2.5, 0, 0]} },
-  Painting_2: { duration: 0.7, closed: {}, open: { offset: [0, 0, 2]} },
-  Painting_4: { duration: 0.7, closed: {}, open: { offset: [0, 0, -2]} },
-  Painting_14: { duration: 0.7, closed: {}, open: { offset: [0, 0, -2]} },
-  Painting_1: { duration: 0.7, closed: {}, open: { offset: [0, 2.5, 0]} },
-  Painting_5: { duration: 0.7, closed: {}, open: { offset: [0, 2.5, 0]} },
-  Painting_3: { duration: 0.7, closed: {}, open: { offset: [0, 1.4, 0]} },
-  Painting_6: { duration: 0.7, closed: {}, open: { offset: [0, 2.5, 0]} },
-  Painting_7: { duration: 0.7, closed: {}, open: { offset: [0, 1.5, 0]} },
-  Painting_8: { duration: 0.7, closed: {}, open: { offset: [0, 2.5, 0]} },
-  Painting_10: { duration: 0.7, closed: {}, open: { offset: [0, 2.1, 0]} },
-  Painting_11: { duration: 0.7, closed: {}, open: { offset: [0, 2.2, 0]} },
-  Painting_12: { duration: 0.7, closed: {}, open: { offset: [0, 2.3, 0]} },
-  Painting_17: { duration: 0.7, closed: {}, open: { offset: [0, 2.7, 0]} },
-  Painting_13: { duration: 0.7, closed: {}, open: { offset: [0, 2.5, 0]} },
-  Painting_16: { duration: 0.7, closed: {}, open: { offset: [0, 2.5, 0]} },
+  default: { duration: 0.7, closed: {}, open: { offset: [0, 2, 0], rotationOffset: [0, 0, 0] } }
 };
 
 // Q dairesel menüsü. Buraya öğe eklemek yeterli.
@@ -497,9 +524,10 @@ export const DEFAULT_KEYS = {
   crouch: 'ControlLeft',
   hand: 'Digit1',
   equip: 'Digit2',
-  slot3: 'Digit3', // gizli eşya slotları (debug'dan verilenler; verilme sırasına göre 3, 4, 5)
+  slot3: 'Digit3', // gizli eşya slotları (debug'dan verilenler; verilme sırasına göre 3, 4, 5, 6)
   slot4: 'Digit4',
   slot5: 'Digit5',
+  slot6: 'Digit6',
   ability: 'KeyX',
   flashlight: 'KeyF',
   reload: 'KeyR',
@@ -521,4 +549,6 @@ export const ROLE_COUNTS = {
   escort: (n) => (n >= 5 ? 1 : 0),
   sleepwalker: (n) => (n >= 6 ? 1 : 0),
   medium: (n) => (n >= 9 ? 1 : 0),
+  umaci: (n) => (n >= 8 ? 1 : 0),
+  lover: (n) => (GAME_CONFIG.lovers.enabled && n >= GAME_CONFIG.lovers.autoMinPlayers ? 1 : 0), // ÇİFT sayısı (her çift 2 oyuncu)
 };

@@ -35,6 +35,7 @@ export const HOLDS = {
   pistol: { o: [-0.045, -0.17, 0.3], rx: 0, ry: 0, pk: 1, gun: true },
   rifle: { o: [-0.08, -0.15, 0.2], rx: 0, ry: 0, pk: 1, gun: true },
   plasma: { o: [-0.08, -0.15, 0.2], rx: 0, ry: 0, pk: 1, gun: true },
+  sniper: { o: [-0.08, -0.15, 0.17], rx: 0, ry: 0, pk: 1, gun: true },
   rocket: { o: [-0.22, 0.07, 0.1], rx: 0, ry: 0, pk: 1, gun: true },
   bomb: { o: [0, -0.2, 0.28], rx: 0.2, ry: 0, pk: 0.4, gun: false },
 };

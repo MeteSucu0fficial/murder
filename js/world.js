@@ -40,6 +40,13 @@ const NON_STATIC_KINDS = [
 const _p = new THREE.Vector3();
 const _box = new THREE.Box3();
 const _ride = new THREE.Vector3();
+// randomPointInRoom için ortak geçici nesneler
+const _rpO = new THREE.Vector3();
+const _rpS = new THREE.Vector3();
+const _RP_DOWN = new THREE.Vector3(0, -1, 0);
+const _RP_UP = new THREE.Vector3(0, 1, 0);
+const _RP_DIRS = Array.from({ length: 8 }, (_, k) => new THREE.Vector3(Math.cos((k * Math.PI) / 4), 0, Math.sin((k * Math.PI) / 4)));
+const _RP_FEET = [[0.28, 0.28], [-0.28, 0.28], [0.28, -0.28], [-0.28, -0.28]];
 
 export class World {
   constructor({ sceneMgr, house, quality = 'high' }) {
@@ -246,21 +253,82 @@ export class World {
     return best;
   }
 
-  /** Odanın içinde rastgele (geçerli bir zemini olan) nokta. */
+  /**
+   * Odanın içinde rastgele GEÇERLİ bir duruş noktası (uyurgezer uyanışı); yoksa null. Kutunun şekline GÜVENMEZ (ince, dev ya da zeminden kaymış kutular da çalışır):
+   * kutunun XZ alanında rastgele (x, z) seçer, oradaki TÜM zeminleri yukarıdan aşağı tarar ve her adayı ışınlarla sınar:
+   *  • zemin kutunun kat aralığında, • gövde çevresinde (3 yükseklik × 8 yön) duvar / eşya yok, • ayak altı dört köşede zemin var (çukur / kenar değil),
+   *  • baş üstü 1.8 m açık. Tercih: üstte ≤ 6 m içinde tavan olan (iç mekân) nokta; yoksa tavansız ama geçerli nokta; hiçbiri yoksa null (çağıran başka oda dener).
+   */
   randomPointInRoom(room) {
     const b = room.box;
-    const size = b.getSize(new THREE.Vector3());
-    for (let i = 0; i < 12; i++) {
-      const x = room.center.x + (Math.random() - 0.5) * size.x * 0.7;
-      const z = room.center.z + (Math.random() - 0.5) * size.z * 0.7;
-      const y = this.collision.floorAt(x, b.min.y + 1.2, z, 0, 3);
-      if (y === null) continue;
-      // baş üstü boşluk kontrolü
-      const head = this.collision.raycast(new THREE.Vector3(x, y + 0.1, z), new THREE.Vector3(0, 1, 0), 1.7);
-      if (!head) return new THREE.Vector3(x, y + 0.02, z);
+    const size = b.getSize(_rpS);
+    if (!Number.isFinite(size.x + size.y + size.z) || size.x <= 0 || size.z <= 0) return null;
+    const col = this.collision;
+    const reach = GAME_CONFIG.player.radius + 0.06;
+    const yLo = b.min.y - 1.0;
+    const yHi = Math.max(b.max.y - 0.9, b.min.y + 1.0);
+    const why = { zemin: 0, duvar: 0, kenar: 0, baş: 0 };
+    // 0 = geçersiz · 1 = geçerli ama tavansız · 2 = geçerli iç mekân
+    const test = (x, y, z) => {
+      for (const h of [0.55, 1.0, 1.5]) {
+        for (const d of _RP_DIRS) {
+          if (col.raycast(_rpO.set(x, y + h, z), d, reach)) {
+            why.duvar++;
+            return 0;
+          }
+        }
+      }
+      for (const [dx, dz] of _RP_FEET) {
+        const f = col.floorAt(x + dx, y + 0.5, z + dz, 0, 1.1);
+        if (f === null || Math.abs(f - y) > 0.45) {
+          why.kenar++;
+          return 0;
+        }
+      }
+      if (col.raycast(_rpO.set(x, y + 0.05, z), _RP_UP, 1.8)) {
+        why.baş++;
+        return 0;
+      }
+      return col.raycast(_rpO.set(x, y + 1.8, z), _RP_UP, 6) ? 2 : 1;
+    };
+    let backup = null;
+    for (let i = 0; i < 100; i++) {
+      const k = i < 40 ? 0.7 : 1; // önce odanın ortasına yakın, sonra tüm alan
+      const x = room.center.x + (Math.random() - 0.5) * Math.max(0.1, size.x - 0.8) * k;
+      const z = room.center.z + (Math.random() - 0.5) * Math.max(0.1, size.z - 0.8) * k;
+      let y = b.max.y + 0.3;
+      for (let n = 0; n < 8 && y > yLo - 0.5; n++) {
+        const hit = col.raycast(_rpO.set(x, y, z), _RP_DOWN, y - (yLo - 0.5));
+        if (!hit) break;
+        const fy = hit.point.y;
+        y = fy - 0.05;
+        if (fy < yLo || fy > yHi) {
+          why.zemin++;
+          continue;
+        }
+        const r = test(x, fy + 0.02, z);
+        if (r === 2) return new THREE.Vector3(x, fy + 0.02, z);
+        if (r === 1 && !backup) backup = new THREE.Vector3(x, fy + 0.02, z);
+      }
     }
-    const y = this.collision.floorAt(room.center.x, b.min.y + 1.2, room.center.z, 0, 3);
-    return new THREE.Vector3(room.center.x, (y ?? b.min.y) + 0.02, room.center.z);
+    if (!backup) {
+      console.warn(`[Uyurgezer] ${room.id}: geçerli nokta bulunamadı (kutu y ${b.min.y.toFixed(2)}…${b.max.y.toFixed(2)}, elenen: zemin ${why.zemin} · duvar ${why.duvar} · kenar ${why.kenar} · baş ${why.baş})`);
+    }
+    return backup;
+  }
+
+  /** Verilen noktaya en yakın doğma noktası (haritacının koyduğu, geçerli olduğu bilinen nokta); doğma noktası yoksa verilen nokta. */
+  spawnNear(pos) {
+    let best = null;
+    let bd = Infinity;
+    for (const sp of this.spawns) {
+      const d = sp.pos.distanceToSquared(pos);
+      if (d < bd) {
+        bd = d;
+        best = sp;
+      }
+    }
+    return best ? new THREE.Vector3(best.pos.x, best.pos.y + 0.02, best.pos.z) : pos.clone();
   }
 
   /** Hareketli zemin (kafes) üzerinde duran oyuncuya bu karede uygulanacak kayma. */

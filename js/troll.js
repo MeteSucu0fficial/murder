@@ -116,6 +116,23 @@ class Troll {
     return !!l && l.includes(id);
   }
 
+  /** Sevgili çiftleri: [[a, b], ...] (host: doğrudan durumdan; misafir: son trollInfo'dan). */
+  lovePairs() {
+    const l = (ctx.isHost && ctx.host ? ctx.host.state.lovers : this.lovers) || [];
+    const out = [];
+    for (let i = 0; i + 1 < l.length; i += 2) out.push([l[i], l[i + 1]]);
+    return out;
+  }
+
+  /** id'nin sevgilisi (yoksa null). */
+  partnerOf(id) {
+    for (const [a, b] of this.lovePairs()) {
+      if (a === id) return b;
+      if (b === id) return a;
+    }
+    return null;
+  }
+
   /** Her kare: misafir kalp atışı (yeniden bağlanan oyuncu yeniden tanınsın) + yetki gidince açık araçları kapat. */
   update(dt) {
     if (this._on && !ctx.isHost && ctx.room) {

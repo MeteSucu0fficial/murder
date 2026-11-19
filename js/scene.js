@@ -32,6 +32,8 @@ export class SceneManager {
     // near = 0.05: kapsül yarıçapı (0.32) varken duvara yaslanıp geniş açıyla yan bakınca bile yakın düzlem duvarın içine girmez (içini görmezsin).
     this.camera = new THREE.PerspectiveCamera(GAME_CONFIG.camera.fov, 1, 0.05, 140);
     this.scene.add(this.camera);
+    this.baseFov = GAME_CONFIG.camera.fov; // ayarlardaki görüş alanı (setFov)
+    this.zoomK = 1; // sniper dürbünü çarpanı (setZoom): 1 = normal, 0.25 = 4× yakınlaşma
 
     // YAKIN GÖRÜŞ: oda ışıkları kapalıyken yakın çevreyi çok az aydınlatan sönük ışık (kameraya bağlı). Işık sayısı sabit kalsın diye
     // hep sahnededir; aydınlıkta şiddeti 0'dır. "Işık efektleri kapalı" modunda hiç çizilmez.
@@ -67,6 +69,18 @@ export class SceneManager {
       this.scene.add(light, light.target);
       this.spots.push({ light, inUse: false });
     }
+
+    // BOŞLUK GÖRÜNÜMÜ (ölü oyuncu): kamera yalnızca deadView.layer katmanını çizer → harita, oyuncular, efektler görünmez; cesetler (corpse.js bu katmanı
+    // açar) ve aşağıdaki boşluk ışıkları görünür. Işıklar yalnızca bu katmandadır: normal oyunda sahneye hiç girmez (shader / ışık sayısı değişmez).
+    const DV = GAME_CONFIG.deadView;
+    this.voidOn = false;
+    const vAmb = new THREE.AmbientLight(0xffffff, DV.ambient);
+    const vLamp = new THREE.DirectionalLight(0xffffff, DV.headlamp); // kameranın arkasından bakılan yöne doğru: cesetlerin cepheden aydınlanması
+    vLamp.position.set(0.35, 0.5, 0.6);
+    vLamp.target.position.set(0, 0, -6);
+    vAmb.layers.set(DV.layer);
+    vLamp.layers.set(DV.layer);
+    this.camera.add(vAmb, vLamp, vLamp.target);
 
     this.overlays = [];
     this.darkness = 0; // 0 aydınlık, 1 karanlık (hedef)
@@ -128,9 +142,22 @@ export class SceneManager {
     this.hemi.groundColor.setHex(this.lightsOn ? HEMI_GROUND : L.flat.ground);
   }
 
+  /** Ölü oyuncunun boşluk görünümü (siyah arka plan, yalnızca ceset katmanı). Aynı değerle tekrar çağırmak zararsızdır. */
+  setVoid(on) {
+    on = !!on;
+    if (on === this.voidOn) return;
+    this.voidOn = on;
+    this.camera.layers.set(on ? GAME_CONFIG.deadView.layer : 0);
+  }
+
   update(dt) {
     const L = GAME_CONFIG.lights;
     this._dark = damp(this._dark, this.darkness, L.transitionSpeed, dt);
+    if (this.voidOn) {
+      this.scene.fog.density = 0;
+      this.scene.background.setHex(0x000000);
+      return;
+    }
     if (this.lightsOn) {
       this.hemi.intensity = lerp(L.ambientOn, L.ambientOff, this._dark);
       this.scene.fog.density = lerp(L.fogOn, L.fogOff, this._dark);
@@ -146,7 +173,19 @@ export class SceneManager {
 
   /** Görüş alanı (derece) — Ayarlar > Genel. Silah görünümünün kendi sabit FOV'u vardır. */
   setFov(deg) {
-    this.camera.fov = clamp(Number(deg) || GAME_CONFIG.camera.fov, 60, 110);
+    this.baseFov = clamp(Number(deg) || GAME_CONFIG.camera.fov, 60, 110);
+    this._applyFov();
+  }
+
+  /** Sniper dürbünü: görüş alanı çarpanı (1 = normal). Ayardaki FOV'un üstüne uygulanır; fare hassasiyeti de buna bakar (movement.js). */
+  setZoom(k) {
+    if (Math.abs(k - this.zoomK) < 1e-4) return;
+    this.zoomK = k;
+    this._applyFov();
+  }
+
+  _applyFov() {
+    this.camera.fov = this.baseFov * this.zoomK;
     this.camera.updateProjectionMatrix();
   }
 
@@ -157,6 +196,7 @@ export class SceneManager {
 
   render() {
     this.renderer.render(this.scene, this.camera);
+    if (this.voidOn) return; // boşluk görünümünde silah görünümü vb. katmanlar çizilmez
     for (const o of this.overlays) o.render(this.renderer, this.camera);
   }
 }

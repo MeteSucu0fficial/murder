@@ -22,7 +22,7 @@ export function newPlayerState(roleId) {
     spectator: false,
     eq: 0,
     slot: 1, // 1 boş el · 2 rol ekipmanı · 3+ gizli eşyalar (items sırasına göre)
-    items: [], // debug'dan verilen gizli eşyalar: ['rocket', 'bomb', 'plasma'] → slot 3, 4, 5
+    items: [], // debug'dan verilen gizli eşyalar: ['rocket', 'bomb', 'plasma', 'sniper'] → slot 3, 4, 5, …
     ammoMap: {}, // silah değişince saklanan mermi sayıları
     ammo: weapon?.magazine || 0,
     reloadLeft: 0,
@@ -34,9 +34,13 @@ export function newPlayerState(roleId) {
     sleepLeft: 0,
     mediumTarget: null,
     mediumMutual: false,
+    mediumNight: -1, // Medyum: son bağlandığı gecenin numarası (gece başına YALNIZCA 1 kişi)
+    mediumPick: null, // Medyum: o gece seçtiği kişi (bağlantı kapansa / kişi ölse de o gece başkası seçilemez)
     s2gTarget: null, // S2G: şu an fermuarını çektiği kişi
     s2gHold: 0, // S2G: basılı tutma süresi (sn)
     s2gNight: -1, // S2G: son kullandığı gecenin numarası (her gece 1 kez)
+    umaciLeft: 0, // Umacı: görünmezliğin kalan süresi (sn)
+    umaciNight: -1, // Umacı: son kullandığı gecenin numarası (her gece 1 kez)
     spec: null,
   };
 }
@@ -67,6 +71,14 @@ export class RoundManager {
         const r = S.debugRoles?.[id];
         roles[id] = ROLES[r] ? r : 'civilian';
       }
+      // Aşık rolü verilenler: debug panelinde kurulan çiftler tur yenilenince de kalır (ikisi de odada ve hâlâ Aşıksa); eşsiz Aşıklar sırayla birbirine bağlanır
+      const dl = S.debugLovers || [];
+      const isL = (id) => roles[id] === 'lover';
+      const keep = [];
+      for (let i = 0; i + 1 < dl.length; i += 2) if (isL(dl[i]) && isL(dl[i + 1])) keep.push(dl[i], dl[i + 1]);
+      const free = ids.filter((id) => isL(id) && !keep.includes(id));
+      for (let i = 0; i + 1 < free.length; i += 2) keep.push(free[i], free[i + 1]);
+      lovers = keep.length ? keep : null;
     } else {
       const a = assignRoles(ids, S.settings);
       roles = a.roles;
@@ -193,6 +205,7 @@ export class RoundManager {
     for (const st of Object.values(S.players)) {
       st.fuse = 0;
       st.sleepLeft = 0;
+      st.umaciLeft = 0; // Umacı: tur bitince herkes yeniden görünür
     }
     this.host.broadcast({ t: 'end', winner, reason, roles, dead, baiter: S.baiterId, lovers: S.lovers, wait: S.endTimer });
     this.host.sendVisToAll();

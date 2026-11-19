@@ -28,6 +28,8 @@ export class PlayerEntity {
     this.identity = { label: IDENTITY.voice.workerName, color: IDENTITY.voice.workerColor, colorName: 'Gri', code: '' };
     this.pos = new THREE.Vector3();
     this.netPos = new THREE.Vector3();
+    this.netVel = new THREE.Vector3(); // konum paketlerinden tahmin edilen hız (m/sn): ölüm itişine "momentum" katar (combat.js → deathImpulse)
+    this._netT = 0; // son konum paketinin zamanı (performance.now)
     this.yaw = 0; // gövde yönü
     this.netYaw = 0;
     this.pitch = 0;
@@ -49,6 +51,7 @@ export class PlayerEntity {
     this.air = false; // havada (zıplıyor / düşüyor): animasyon (ağdan gelir; yerel oyuncuda movement.js yazar)
     this.climbing = false; // tırmanıyor
     this.invisible = false; // debug: görünmez (başkaları gövdesini görmez)
+    this.umaci = false; // Umacı yeteneği açık (host belirler): hareketsizken gövde çizilmez, hareket edince dalgalanır; adı görünmez, içinden geçilir
     this.avatar = createAvatar({ color: this.identity.color, skin: skinTone(id) }); // kafa / eller: kimlikten sabit ten rengi (açık ya da kahverengi)
     ctx.sceneMgr.actorGroup.add(this.avatar.group);
   }
@@ -72,11 +75,25 @@ export class PlayerEntity {
   teleport(x, y, z) {
     this.pos.set(x, y, z);
     this.netPos.set(x, y, z);
+    this.netVel.set(0, 0, 0);
     this.hasNet = true;
   }
 
   /** Diğer oyuncunun gönderdiği konum mesajı */
   applyNet(m) {
+    const now = performance.now();
+    const dtN = (now - this._netT) / 1000;
+    if (this.hasNet && dtN > 0.01 && dtN < 0.5) {
+      // yatay hız (düşüş / zıplama ölüm itişine karışmasın diye y alınmaz); ani sıçramalara (ışınlanma) karşı sınırlı, kaba bir yumuşatma
+      const k = 0.5;
+      const vx = Math.max(-9, Math.min(9, (m.x - this.netPos.x) / dtN));
+      const vz = Math.max(-9, Math.min(9, (m.z - this.netPos.z) / dtN));
+      this.netVel.x += (vx - this.netVel.x) * k;
+      this.netVel.z += (vz - this.netVel.z) * k;
+    } else {
+      this.netVel.set(0, 0, 0);
+    }
+    this._netT = now;
     this.netPos.set(m.x, m.y, m.z);
     this.netYaw = m.yaw;
     this.netPitch = m.pitch;
@@ -90,6 +107,7 @@ export class PlayerEntity {
     this.air = !!m.ar;
     this.climbing = !!m.cl;
     this.invisible = !!m.iv;
+    this.umaci = !!m.um;
     if (!this.hasNet) {
       this.pos.copy(this.netPos);
       this.yaw = this.netYaw;
@@ -107,13 +125,17 @@ export class PlayerEntity {
       this.eyeH = damp(this.eyeH, this.crouch ? P.crouchEyeHeight : P.eyeHeight, P.crouchBlend, dt);
     }
     const a = this.avatar;
-    const shown = this.alive && !this.hideBody && !this.invisible;
+    // Umacı: görünmezken yalnızca HAREKET EDERKEN (yürü / koş / zıpla / tırman) dalgalanma efekti çizilir; durunca gövde hiç çizilmez
+    const cloak = this.umaci && this.alive;
+    const moving = this.speed > 0 || this.air || this.climbing;
+    const shown = this.alive && !this.hideBody && !this.invisible && (!cloak || moving);
     a.setVisible(shown);
+    a.setShimmer?.(cloak);
     a.group.position.copy(this.pos);
     a.group.rotation.y = this.yaw;
     a.setPitch(this.pitch);
     a.setEquipment(this.alive && this.eq.out ? this.eq.type : null);
-    const lit = this.alive && this.flashlight && !this.invisible;
+    const lit = this.alive && this.flashlight && !this.invisible && !cloak;
     a.setFlashlight(lit);
     a.setMoving(this.speed);
     a.setCrouch(clamp((P.eyeHeight - this.eyeH) / (P.eyeHeight - P.crouchEyeHeight), 0, 1));

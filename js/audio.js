@@ -149,16 +149,16 @@ class AudioManager {
   }
 
   /**
-   * name: shot | rifle | pistol | hit | taser | explosion | beep | notify | reload | click | death | win | lose
+   * name: shot | rifle | pistol | sniper | hit | taser | explosion | beep | notify | reload | click | death | win | lose
    * (stab | throw | door çağrılsa bile ÇALMAZ: SILENT listesi.)
    * opts.pos + opts.listener verilirse mesafeye göre kısılır.
    */
-  sfx(name, { volume = 1, pos = null, listener = null } = {}) {
+  sfx(name, { volume = 1, pos = null, listener = null, range = 45 } = {}) {
     if (SILENT.has(name)) return;
     if (!this._ensure()) return;
     if (pos && listener) {
       const d = Math.hypot(pos.x - listener.x, pos.y - listener.y, pos.z - listener.z);
-      const f = Math.max(0, 1 - d / 45);
+      const f = Math.max(0, 1 - d / range);
       volume *= f * f;
       if (volume < 0.02) return;
     }
@@ -168,6 +168,12 @@ class AudioManager {
       case 'shot':
         this._noiseBurst(0.18, { vol: 0.55 * v, from: 6000, to: 300 });
         this._tone(160, 0.14, { type: 'square', vol: 0.25 * v, slideTo: 50 });
+        break;
+      case 'sniper': // gür patlama + uzun yankı, ardından sürgü sesi (iki metalik tık)
+        this._noiseBurst(0.42, { vol: 0.8 * v, from: 4200, to: 160 });
+        this._tone(95, 0.32, { type: 'square', vol: 0.34 * v, slideTo: 30 });
+        this._tone(520, 0.04, { type: 'square', vol: 0.1 * v, delay: 0.55 });
+        this._tone(300, 0.05, { type: 'square', vol: 0.1 * v, delay: 0.72 });
         break;
       case 'rifle':
         this._noiseBurst(0.1, { vol: 0.4 * v, from: 5000, to: 500 });

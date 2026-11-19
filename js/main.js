@@ -23,6 +23,7 @@ import { UI } from './ui.js';
 import { ChatUI } from './chat.js';
 import { RadialMenu, VOICE_MENU } from './radialMenu.js';
 import { PlayerList } from './playerList.js';
+import { TouchControls } from './touch.js';
 import { LookName } from './lookName.js';
 import { DebugPanel } from './debug.js';
 import { TrollHacks, XRay } from './troll.js';
@@ -113,6 +114,7 @@ async function boot() {
   ctx.playerList = new PlayerList(uiRoot);
   ctx.debug = new DebugPanel(uiRoot);
   ctx.xray = new XRay(uiRoot);
+  ctx.touch = new TouchControls(); // dokunmatik arayüz: yalnızca dokunmatik cihazda (ya da Ayarlar → Dokunmatik arayüz: Açık) etkindir
 
   ctx.client.attach(ctx.net);
   ctx.ui.attach(ctx.net);
@@ -216,6 +218,7 @@ function step(dt) {
     (ctx.phase === 'playing' || ctx.phase === 'ended') &&
     !!ctx.me;
 
+  ctx.touch?.update(); // önce: sanal kilit / dokunmatik durumu bu karenin girdisinden önce hazır olsun
   ctx.world.update(dt);
 
   ctx.radial.update(dt);

@@ -12,13 +12,15 @@ import { h } from './util.js';
 const RADIUS = 128;
 const DEAD_ZONE = 34;
 const TAU = Math.PI * 2;
+/** Dokunmatikte daire ekran boyuna göre ölçeklenir (her ekranda aynı büyüklük); masaüstünde 1. */
+const sc = () => (ctx.input?.touchMode ? ctx.touch?.k || 1 : 1);
 
 /** Ses menüsü (Q). */
 export const SOUND_MENU = {
   key: () => KEYS.radial,
   items: () => RADIAL_MENU_ITEMS,
   busyAware: true,
-  hint: () => `Bir ses seç, ${keyLabel(KEYS.radial)} tuşunu bırak`,
+  hint: () => (ctx.input?.touchMode ? 'Parmağını kaydır, bırakınca seçilir' : `Bir ses seç, ${keyLabel(KEYS.radial)} tuşunu bırak`),
   canUse: () => !!ctx.me && ctx.me.alive && ctx.phase === 'playing' && !ctx.ui.modalOpen(),
   onChoose: (i) => ctx.client.toHost({ t: 'sound', i }),
 };
@@ -28,7 +30,7 @@ export const VOICE_MENU = {
   key: () => KEYS.talkLevel,
   items: () => ctx.voice?.levelChoices() || [],
   busyAware: false,
-  hint: () => `Seviyeyi seç, ${keyLabel(KEYS.talkLevel)} tuşunu bırak`,
+  hint: () => (ctx.input?.touchMode ? 'Parmağını kaydır, bırakınca seçilir' : `Seviyeyi seç, ${keyLabel(KEYS.talkLevel)} tuşunu bırak`),
   canUse: () => !!ctx.me && !!ctx.voice?.canSpeak() && ctx.phase !== 'menu' && !ctx.ui.modalOpen() && !ctx.playerList?.shown && ctx.input.locked,
   onChoose: (i, item) => ctx.voice?.chooseLevel(item?.level),
 };
@@ -66,12 +68,13 @@ export class RadialMenu {
     const n = this.items.length;
     // öğe açısı: verilmediyse tepeden başlayıp eşit aralıklı (saat yönü); ekran koordinatı: sağ = 0, aşağı = +π/2
     this.angles = this.items.map((it, i) => it.angle ?? -Math.PI / 2 + (i / n) * TAU);
+    const R = RADIUS * sc();
     this.ring.replaceChildren();
     this.nodes = this.items.map((it, i) => {
       const a = this.angles[i];
       const node = h(
         'div',
-        { class: 'radial-item', style: { transform: `translate(-50%,-50%) translate(${Math.cos(a) * RADIUS}px, ${Math.sin(a) * RADIUS}px)` } },
+        { class: 'radial-item', style: { transform: `translate(-50%,-50%) translate(${Math.cos(a) * R}px, ${Math.sin(a) * R}px)` } },
         it.name,
         it.sub ? h('small', { style: { display: 'block', opacity: '0.7', fontSize: '11px', marginTop: '2px' } }, it.sub) : null,
       );
@@ -127,14 +130,15 @@ export class RadialMenu {
     const look = input.consumeLook();
     this.cx += look.x;
     this.cy += look.y;
+    const R = RADIUS * sc();
     const len = Math.hypot(this.cx, this.cy);
-    if (len > RADIUS) {
-      this.cx *= RADIUS / len;
-      this.cy *= RADIUS / len;
+    if (len > R) {
+      this.cx *= R / len;
+      this.cy *= R / len;
     }
     this.cursor.style.transform = `translate(${this.cx}px, ${this.cy}px)`;
     let sel = -1;
-    if (len > DEAD_ZONE && this.angles.length) {
+    if (len > DEAD_ZONE * sc() && this.angles.length) {
       // imlece açısal olarak en yakın öğe
       const ang = Math.atan2(this.cy, this.cx);
       let best = Infinity;

@@ -6,7 +6,7 @@ import { ctx } from './context.js';
 import { MOUSE_LEFT, MOUSE_RIGHT } from './input.js';
 import { audio } from './audio.js';
 import { isNight } from './lights.js';
-import { clamp, round3 } from './util.js';
+import { clamp, damp, round3 } from './util.js';
 
 const E = GAME_CONFIG.equipment;
 const A = GAME_CONFIG.abilities;
@@ -99,7 +99,7 @@ class FlashlightManager {
       const cam = sm.camera.position;
       const list = ctx.players
         .all()
-        .filter((p) => !p.isLocal && p.alive && p.flashlight)
+        .filter((p) => !p.isLocal && p.alive && p.flashlight && !p.umaci) // Umacı (görünmez) iken feneri başkalarına görünmez
         .sort((a, b) => a.pos.distanceToSquared(cam) - b.pos.distanceToSquared(cam))
         .slice(0, F.maxRemoteLights);
       const keep = new Set(list.map((p) => p.id));
@@ -118,7 +118,7 @@ class FlashlightManager {
     }
     for (const [id, spot] of this.remote) {
       const p = ctx.players.get(id);
-      if (!p || !p.alive || !p.flashlight) {
+      if (!p || !p.alive || !p.flashlight || p.umaci) {
         sm.releaseSpot(spot);
         this.remote.delete(id);
         continue;
@@ -148,6 +148,8 @@ export class Inventory {
     this.flash = new FlashlightManager();
     this.s2g = { target: null, t: 0 }; // S2G: şu an fermuarını çektiğim kişi + basılı tutma süresi
     this.holdProgress = 0; // 0..1: ekran ortasındaki ilerleme çubuğu (S2G basılı tutma)
+    this.scopeAmt = 0; // sniper dürbünü açıklığı: 0 kapalı … 1 tam açık (zoom, dürbün çerçevesi ve silah gizleme buna bakar)
+    this.scoped = false;
   }
 
   get equipType() {
@@ -166,6 +168,10 @@ export class Inventory {
     this.s2g.target = null; // (ölüm / tur sonu: host zaten iptal eder)
     this.s2g.t = 0;
     this.holdProgress = 0;
+    this.scopeAmt = 0;
+    this.scoped = false;
+    document.body.classList.remove('scoped');
+    ctx.sceneMgr?.setZoom(1);
     if (ctx.me) {
       ctx.me.eq.out = false;
       ctx.me.eq.type = this.equipType;
@@ -193,7 +199,8 @@ export class Inventory {
     const itemsChanged = items.join() !== (s.items || []).join();
     Object.assign(s, {
       hp: m.hp, ammo: m.ammo, mag: m.mag, reload: m.reload, abilityCd: m.abilityCd,
-      baiter: m.baiter, baiterUsed: m.baiterUsed, knifeAway: m.knifeAway, mediumTarget: m.mediumTarget, mediumMutual: m.mediumMutual, s2gUsed: !!m.s2gUsed,
+      baiter: m.baiter, baiterUsed: m.baiterUsed, knifeAway: m.knifeAway, mediumTarget: m.mediumTarget, mediumMutual: m.mediumMutual, mediumPick: m.mediumPick ?? null, s2gUsed: !!m.s2gUsed,
+      umaciLeft: m.umaciLeft || 0, umaciUsed: !!m.umaciUsed,
       items, god: !!m.god,
     });
     // Eşya verildi / alındı: elimdeki gizli eşyanın slot numarası kaymış olabilir → host'un söylediği slot'u benimse
@@ -256,7 +263,13 @@ export class Inventory {
     this.cd = Math.max(0, this.cd - dt);
     s.reload = Math.max(0, (s.reload || 0) - dt);
     s.abilityCd = Math.max(0, (s.abilityCd || 0) - dt);
+    if (s.umaciLeft > 0) s.umaciLeft = Math.max(0, s.umaciLeft - dt); // Umacı: görünmezlikten kalan süre (host her değişimde düzeltir)
     this.flash.update(dt);
+
+    // Sniper dürbünü: sniper elde + SAĞ TIK basılı (dokunmatikte Dürbün düğmesi). Her kare hesaplanır: bırakınca / ölünce / dolum başlayınca yumuşakça normale döner.
+    const wantScope = !!me && me.alive && ctx.phase === 'playing' && !(me.frozenLeft > 0) && this.slot >= 2 && this.heldType === 'sniper' && me.eq.out
+      && !ctx.grab.held && !me.carrying && !(s.reload > 0) && input.isDown(MOUSE_RIGHT);
+    this._scopeUpdate(wantScope, dt);
 
     if (!me || !me.alive || ctx.phase !== 'playing') {
       if (me && me.eq.out && !me.alive) me.eq.out = false;
@@ -270,7 +283,7 @@ export class Inventory {
 
     if (input.wasPressed(KEYS.hand)) this.setSlot(1);
     if (input.wasPressed(KEYS.equip)) this.setSlot(this.slot === 2 ? 1 : 2);
-    for (let n = 3; n <= 5; n++) if (input.wasPressed(KEYS[`slot${n}`])) this.setSlot(this.slot === n ? 1 : n); // gizli eşya slotları
+    for (let n = 3; n <= 6; n++) if (input.wasPressed(KEYS[`slot${n}`])) this.setSlot(this.slot === n ? 1 : n); // gizli eşya slotları
     if (input.wasPressed(KEYS.flashlight)) {
       me.flashlight = !me.flashlight;
       audio.sfx('click', { volume: 0.5 });
@@ -299,6 +312,17 @@ export class Inventory {
       this.cd = W.throwCooldown;
       ctx.viewmodel?.kick('knife');
     }
+  }
+
+  /** Dürbün açıklığını yumuşat, ana kameranın zoom'unu ve ekran çerçevesini (body.scoped) güncelle. */
+  _scopeUpdate(want, dt) {
+    const k = damp(this.scopeAmt, want ? 1 : 0, E.sniper.zoomSpeed, dt);
+    this.scopeAmt = k < 0.003 ? 0 : k > 0.997 ? 1 : k;
+    if (this.scoped !== want) {
+      this.scoped = want;
+      document.body.classList.toggle('scoped', want);
+    }
+    ctx.sceneMgr?.setZoom(1 / (1 + (E.sniper.zoom - 1) * this.scopeAmt));
   }
 
   // ------------------------------------------------------------------ S2G (fermuar): X BASILI TUT
@@ -384,15 +408,27 @@ export class Inventory {
         if (linked) {
           const pick = await ctx.ui.choose('Medyum bağlantısı', [
             { label: s.mediumMutual ? 'Karşı taraf beni duymasın' : 'Karşı taraf beni de duysun', value: 'toggle' },
-            { label: 'Başka birini seç', value: 'new' },
-            { label: 'Bağlantıyı kapat', value: 'off' },
+            { label: 'Bağlantıyı kapat (bu gece başkasına geçemezsin)', value: 'off' },
           ]);
           if (pick === 'toggle') send({ target: s.mediumTarget, mutual: !s.mediumMutual });
           else if (pick === 'off') send({ off: 1 });
-          else if (pick === 'new') await this._mediumPick(send);
+        } else if (s.mediumPick) {
+          // Gece başına YALNIZCA 1 kişi: bu gece seçtiğin kişiyle yeniden bağlanabilirsin, başkasıyla değil.
+          const pp = ctx.players.get(s.mediumPick);
+          if (pp?.alive) {
+            const again = await ctx.ui.choose('Medyum bağlantısı', [{ label: `${pp.name} ile yeniden bağlan`, value: 'again' }]);
+            if (again === 'again') send({ target: s.mediumPick, mutual: false });
+          } else ctx.ui.toast('Bu gece yeteneğini zaten kullandın (gece başına 1 kişi).');
         } else await this._mediumPick(send);
         break;
       }
+      case 'umaci':
+        // Gece başına 1 kez, görünmezlik süresi boyunca tekrar basılamaz (asıl doğrulama host'ta: combat.js → onAbility)
+        if (s.umaciLeft > 0) ctx.ui.toast('Zaten görünmezsin.');
+        else if (GAME_CONFIG.abilities.umaci.nightOnly && !isNight(ctx.world.lights)) ctx.ui.toast('Umacı yeteneği yalnızca gece (ışıklar kapalıyken) kullanılabilir.');
+        else if (s.umaciUsed) ctx.ui.toast('Bu gece yeteneğini zaten kullandın (gece başına 1 kez).');
+        else send();
+        break;
       default:
         break;
     }
@@ -407,7 +443,7 @@ export class Inventory {
       ctx.ui.toast('Seçilecek oyuncu yok.');
       return;
     }
-    const target = await ctx.ui.choose('Kiminle gizli bağlantı kurulsun?', list);
+    const target = await ctx.ui.choose('Kiminle gizli bağlantı kurulsun? (gece başına yalnızca 1 kişi)', list);
     if (target) send({ target, mutual: false });
   }
 }

@@ -1,4 +1,6 @@
-// Klavye / fare girdi durumu. Oyun mantığı sadece bu sınıfı sorgular. (Mobil / dokunmatik destek kaldırıldı.)
+// Klavye / fare girdi durumu. Oyun mantığı sadece bu sınıfı sorgular.
+// Dokunmatik arayüz (touch.js) oyun mantığına hiç dokunmaz: bu sınıfa "sanal tuş" basar (press / release), "sanal bakış" ekler (lookBy),
+// analog hareketi moveVec ile verir ve imleç kilidini taklit eder (touchMode açıkken locked = "oyun denetimi aktif").
 import { engageTabGuard } from './tabGuard.js';
 
 export const MOUSE_LEFT = 'Mouse0';
@@ -17,6 +19,8 @@ export class Input {
     this.enabled = true; // arayüz açıkken false yapılır
     this.listeners = new Set(); // lockchange dinleyicileri
     this.keyHandlers = new Map(); // code -> [fn]
+    this.touchMode = false; // dokunmatik arayüz etkin mi (touch.js açar / kapatır; varsayılan kapalı)
+    this.moveVec = { x: 0, y: 0 }; // dokunmatik analog hareket: sağ(+), ileri(+), uzunluk ≤ 1
     this._bind();
   }
 
@@ -42,33 +46,81 @@ export class Input {
     });
     window.addEventListener('blur', () => this.releaseAll());
     this.canvas.addEventListener('contextmenu', (e) => e.preventDefault());
+    // Dokunmatik modda gerçek fare olayları yok sayılır (dokunuştan türeyen "uyumluluk" fare olayları sanal tuşları bozmasın).
     this.canvas.addEventListener('mousedown', (e) => {
-      if (!this.locked) return;
+      if (!this.locked || this.touchMode) return;
       const c = `Mouse${e.button}`;
       if (!this.down.has(c)) this.pressed.add(c);
       this.down.add(c);
     });
     window.addEventListener('mouseup', (e) => {
+      if (this.touchMode) return;
       const c = `Mouse${e.button}`;
       if (this.down.delete(c)) this.released.add(c);
     });
     window.addEventListener('mousemove', (e) => {
-      if (!this.locked || !this.enabled) return;
+      if (!this.locked || !this.enabled || this.touchMode) return;
       this.lookX += e.movementX || 0;
       this.lookY += e.movementY || 0;
     });
     window.addEventListener(
       'wheel',
       (e) => {
-        if (this.locked) this.wheel += Math.sign(e.deltaY);
+        if (this.locked && !this.touchMode) this.wheel += Math.sign(e.deltaY);
       },
       { passive: true },
     );
     document.addEventListener('pointerlockchange', () => {
-      this.locked = document.pointerLockElement === this.canvas;
-      if (!this.locked) this.releaseAll();
-      this.listeners.forEach((fn) => fn(this.locked));
+      if (this.touchMode) return; // sanal kilit: gerçek imleç kilidi kullanılmaz
+      this._setLocked(document.pointerLockElement === this.canvas);
     });
+  }
+
+  /** Kilit durumunu değiştirir; kilit açılınca basılı her şey bırakılır ve dinleyiciler çağrılır. */
+  _setLocked(v) {
+    if (this.locked === v) return;
+    this.locked = v;
+    if (!v) {
+      this.releaseAll();
+      this.moveVec.x = this.moveVec.y = 0;
+      this.lookX = this.lookY = 0;
+    }
+    this.listeners.forEach((fn) => fn(v));
+  }
+
+  /** Dokunmatik modu aç / kapat (kapatırken sanal kilit ve basılı sanal tuşlar temizlenir). */
+  setTouchMode(on) {
+    on = !!on;
+    if (on === this.touchMode) return;
+    if (on) this.exitLock(); // gerçek imleç kilidi varsa bırak
+    this.touchMode = on;
+    this._setLocked(false);
+    this.releaseAll();
+  }
+
+  // ----- Sanal girdi (dokunmatik arayüz) -----
+  /** Sanal tuşa bas: klavyedeki keydown ile aynı etkiyi yapar. */
+  press(code) {
+    if (!this.enabled || !code) return;
+    if (!this.down.has(code)) this.pressed.add(code);
+    this.down.add(code);
+    this.keyHandlers.get(code)?.forEach((fn) => fn(true));
+  }
+  /** Sanal tuşu bırak (keyup). */
+  release(code) {
+    if (!code) return;
+    if (this.down.delete(code)) this.released.add(code);
+    this.keyHandlers.get(code)?.forEach((fn) => fn(false));
+  }
+  /** Sanal bakış: fare hareketi gibi (piksel birimi); yalnızca kilitliyken ve arayüz kapalıyken. */
+  lookBy(dx, dy) {
+    if (!this.locked || !this.enabled) return;
+    this.lookX += dx;
+    this.lookY += dy;
+  }
+  /** Sanal fare tekeri (uzaklaştır / yakınlaştır). */
+  wheelBy(n) {
+    if (this.locked && this.enabled) this.wheel += n;
   }
 
   /** Bir tuş değiştiğinde (basma/bırakma) çağrılacak işlev kaydet. */
@@ -82,6 +134,10 @@ export class Input {
   }
 
   requestLock() {
+    if (this.touchMode) {
+      this._setLocked(true); // sanal kilit: dokunmatik denetimler etkin
+      return;
+    }
     if (this.canvas.requestPointerLock) {
       const p = this.canvas.requestPointerLock();
       if (p && p.catch) p.catch(() => {});
@@ -90,6 +146,10 @@ export class Input {
   }
 
   exitLock() {
+    if (this.touchMode) {
+      this._setLocked(false);
+      return;
+    }
     if (document.pointerLockElement) document.exitPointerLock();
   }
 
@@ -123,6 +183,10 @@ export class Input {
     if (this.isDown(keys.back)) y -= 1;
     if (this.isDown(keys.right)) x += 1;
     if (this.isDown(keys.left)) x -= 1;
+    if (this.enabled && this.locked && (this.moveVec.x || this.moveVec.y)) {
+      x += this.moveVec.x; // dokunmatik analog çubuk (klavye ile birlikte de çalışır)
+      y += this.moveVec.y;
+    }
     const len = Math.hypot(x, y);
     if (len > 1) {
       x /= len;

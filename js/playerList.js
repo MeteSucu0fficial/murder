@@ -5,6 +5,7 @@
 //  • Katil bir satıra SOL tıklarsa küçük menü çıkar: "Baiter ver" (tur başına yalnızca 1 kez, geri alınamaz).
 //    Liste açıkken fare tıklaması oyuna geçmez (bıçak savurma, eşya fırlatma vb. tetiklenmez).
 //  • İmleç kilitliyken sanal imleç kullanılır; menü açılınca imleç serbest kalır.
+//  • Dokunmatik: sağ üstteki "liste" düğmesi listeyi açar / kapatır (touchOpen); satıra dokunmak sol tık yerine geçer, sanal imleç yoktur.
 import { KEYS } from './config.js';
 import { ctx } from './context.js';
 import { MOUSE_LEFT, MOUSE_RIGHT } from './input.js';
@@ -21,6 +22,7 @@ export class PlayerList {
     root.append(this.panel, this.menu, this.vcursor);
     this.shown = false;
     this.sticky = false; // Baiter menüsü açıkken: liste TAB'a bağlı olmadan açık kalır
+    this.touchOpen = false; // dokunmatik: liste düğmesiyle açık tutulur
     this.cx = window.innerWidth / 2;
     this.cy = window.innerHeight / 2;
     this.rows = new Map(); // id -> { el, talk }
@@ -29,6 +31,11 @@ export class PlayerList {
     document.addEventListener('mousedown', (e) => {
       if (this.sticky && !this.menu.contains(e.target) && !this.menu.classList.contains('hidden')) this.closeMenu(true);
     });
+    // Dokunmatik: liste açıkken listenin / düğmelerin DIŞINA dokunmak listeyi kapatır (bu sırada dokunmatik katman boş alana geçirgendir: touch.js → list-open)
+    document.addEventListener('pointerdown', (e) => {
+      if (!this.touchOpen || this.panel.contains(e.target) || e.target?.closest?.('.t-btn')) return;
+      this.touchClose();
+    }, true);
   }
 
   // ------------------------------------------------------------------ veri
@@ -77,8 +84,9 @@ export class PlayerList {
       this.rows.set(pl.id, { el: row, talk });
       this.body.appendChild(row);
     }
+    const tap = ctx.input.touchMode ? 'dokun' : 'sol tıkla';
     this.hint.textContent = isKiller
-      ? ctx.me_state.baiterUsed ? 'Bu tur Baiter seçtin (geri alınamaz).' : 'Bir oyuncuya sol tıkla: "Baiter ver" (tur başına 1 kez)'
+      ? ctx.me_state.baiterUsed ? 'Bu tur Baiter seçtin (geri alınamaz).' : `Bir oyuncuya ${tap}: "Baiter ver" (tur başına 1 kez)`
       : '';
   }
 
@@ -98,6 +106,7 @@ export class PlayerList {
     this.menu.style.top = `${Math.min(y, window.innerHeight - 110)}px`;
     this.menu.classList.remove('hidden');
     this.sticky = true;
+    this.touchOpen = false; // menü kapanınca liste kendiliğinden açılmasın
     ctx.input.exitLock();
     this.vcursor.classList.add('hidden');
   }
@@ -107,6 +116,14 @@ export class PlayerList {
     this.sticky = false;
     this.setShown(false);
     if (relock && ctx.phase === 'playing' && !ctx.ui.modalOpen()) ctx.input.requestLock();
+  }
+
+  /** Dokunmatik liste düğmesi: aç / kapat. */
+  touchToggle() {
+    this.touchOpen = !this.touchOpen && (ctx.phase === 'playing' || ctx.phase === 'ended');
+  }
+  touchClose() {
+    this.touchOpen = false;
   }
 
   setShown(v) {
@@ -123,7 +140,8 @@ export class PlayerList {
   update(dt) {
     const input = ctx.input;
     const inGame = ctx.phase === 'playing' || ctx.phase === 'ended';
-    const want = inGame && (input.isDown(KEYS.list) || this.sticky);
+    if (this.touchOpen && (!inGame || !input.touchMode || !input.locked)) this.touchOpen = false; // menü / duraklatma açılınca liste kapanır
+    const want = inGame && (input.isDown(KEYS.list) || this.sticky || this.touchOpen);
     this.setShown(want);
     if (!this.shown) return;
 
@@ -134,7 +152,7 @@ export class PlayerList {
     }
 
     // imleç kilitliyken sanal imleç
-    if (input.locked && !this.sticky) {
+    if (input.locked && !this.sticky && !input.touchMode) {
       const look = input.consumeLook();
       this.cx = Math.max(0, Math.min(window.innerWidth, this.cx + look.x));
       this.cy = Math.max(0, Math.min(window.innerHeight, this.cy + look.y));
